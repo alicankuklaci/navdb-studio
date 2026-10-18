@@ -1,0 +1,413 @@
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+use crate::dialect::Dialect;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum DbKind {
+    #[default]
+    MySql,
+    MariaDb,
+    PostgreSql,
+    Sqlite,
+    Redis,
+}
+
+impl DbKind {
+    pub const ALL: [DbKind; 5] = [
+        DbKind::MySql,
+        DbKind::MariaDb,
+        DbKind::PostgreSql,
+        DbKind::Sqlite,
+        DbKind::Redis,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            DbKind::MySql => "MySQL",
+            DbKind::MariaDb => "MariaDB",
+            DbKind::PostgreSql => "PostgreSQL",
+            DbKind::Sqlite => "SQLite",
+            DbKind::Redis => "Redis",
+        }
+    }
+
+    pub fn default_port(self) -> u16 {
+        match self {
+            DbKind::MySql | DbKind::MariaDb => 3306,
+            DbKind::PostgreSql => 5432,
+            DbKind::Sqlite => 0,
+            DbKind::Redis => 6379,
+        }
+    }
+
+    pub fn default_user(self) -> &'static str {
+        match self {
+            DbKind::MySql | DbKind::MariaDb => "root",
+            DbKind::PostgreSql => "postgres",
+            _ => "",
+        }
+    }
+
+    pub fn dialect(self) -> Dialect {
+        match self {
+            DbKind::MySql | DbKind::MariaDb => Dialect::MySql,
+            DbKind::PostgreSql => Dialect::Postgres,
+            DbKind::Sqlite | DbKind::Redis => Dialect::Sqlite,
+        }
+    }
+
+    pub fn is_sql(self) -> bool {
+        !matches!(self, DbKind::Redis)
+    }
+
+    /// Whether objects live in schemas inside a database (PostgreSQL).
+    pub fn has_schemas(self) -> bool {
+        matches!(self, DbKind::PostgreSql)
+    }
+
+    pub fn is_file_based(self) -> bool {
+        matches!(self, DbKind::Sqlite)
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct SslConfig {
+    pub enabled: bool,
+    pub ca_cert: String,
+    pub client_cert: String,
+    pub client_key: String,
+    pub verify_server: bool,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct SshConfig {
+    pub enabled: bool,
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    /// Path to a private key. Password authentication is delegated to the
+    /// user's ssh-agent / ssh config since the system `ssh` client is used.
+    pub private_key: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ConnectionConfig {
+    pub id: String,
+    pub name: String,
+    pub kind: DbKind,
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub password: String,
+    pub save_password: bool,
+    /// Initial database (MySQL/PG) or database file path (SQLite).
+    pub database: String,
+    /// Restrict the navigator to these databases (empty = show all).
+    pub custom_databases: Vec<String>,
+    pub ssl: SslConfig,
+    pub ssh: SshConfig,
+    pub color: Option<[u8; 3]>,
+    pub group: String,
+    pub connect_timeout_secs: u64,
+    pub keepalive_secs: u64,
+    pub encoding: String,
+    pub read_only: bool,
+    /// SQLite databases to ATTACH after connecting: (alias, path).
+    pub attached: Vec<(String, String)>,
+}
+
+impl Default for ConnectionConfig {
+    fn default() -> Self {
+        Self::new(DbKind::MySql)
+    }
+}
+
+impl ConnectionConfig {
+    pub fn new(kind: DbKind) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: String::new(),
+            kind,
+            host: if kind.is_file_based() { String::new() } else { "localhost".into() },
+            port: kind.default_port(),
+            user: kind.default_user().into(),
+            password: String::new(),
+            save_password: true,
+            database: String::new(),
+            custom_databases: vec![],
+            ssl: SslConfig::default(),
+            ssh: SshConfig { port: 22, ..Default::default() },
+            color: None,
+            group: String::new(),
+            connect_timeout_secs: 10,
+            keepalive_secs: 240,
+            encoding: "utf8mb4".into(),
+            read_only: false,
+            attached: vec![],
+        }
+    }
+
+    pub fn dialect(&self) -> Dialect {
+        self.kind.dialect()
+    }
+
+    pub fn display_name(&self) -> String {
+        if !self.name.is_empty() {
+            self.name.clone()
+        } else if self.kind.is_file_based() {
+            PathBuf::from(&self.database)
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| "SQLite".into())
+        } else {
+            format!("{}@{}", self.user, self.host)
+        }
+    }
+
+    /// Database the session starts in when nothing else is selected.
+    pub fn default_database(&self) -> String {
+        match self.kind {
+            DbKind::PostgreSql => {
+                if self.database.is_empty() { "postgres".into() } else { self.database.clone() }
+            }
+            DbKind::Sqlite => "main".into(),
+            DbKind::Redis => {
+                if self.database.is_empty() { "db0".into() } else { self.database.clone() }
+            }
+            _ => self.database.clone(),
+        }
+    }
+}
+
+/// User preferences (Preferences window).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Preferences {
+    pub dark_mode: bool,
+    pub editor_font_size: f32,
+    pub grid_font_size: f32,
+    pub show_line_numbers: bool,
+    pub word_wrap: bool,
+    pub auto_complete: bool,
+    pub uppercase_keywords: bool,
+    pub tab_width: usize,
+    pub records_per_page: usize,
+    pub show_null_as: String,
+    pub confirm_delete: bool,
+    pub stop_on_error: bool,
+    pub auto_begin_transaction: bool,
+    pub limit_query_results: bool,
+    pub query_result_limit: usize,
+    pub max_history: usize,
+    pub open_tabs_in_new_window: bool,
+    pub auto_save_queries: bool,
+    pub show_object_info_pane: bool,
+    pub date_format: String,
+}
+
+impl Default for Preferences {
+    fn default() -> Self {
+        Self {
+            dark_mode: false,
+            editor_font_size: 13.0,
+            grid_font_size: 12.5,
+            show_line_numbers: true,
+            word_wrap: false,
+            auto_complete: true,
+            uppercase_keywords: true,
+            tab_width: 4,
+            records_per_page: 1000,
+            show_null_as: "(Null)".into(),
+            confirm_delete: true,
+            stop_on_error: true,
+            auto_begin_transaction: false,
+            limit_query_results: true,
+            query_result_limit: 5000,
+            max_history: 500,
+            open_tabs_in_new_window: false,
+            auto_save_queries: true,
+            show_object_info_pane: true,
+            date_format: "%Y-%m-%d %H:%M:%S".into(),
+        }
+    }
+}
+
+/// A saved query (the "Queries" object type in the navigator).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SavedQuery {
+    pub id: String,
+    pub name: String,
+    pub connection_id: String,
+    pub database: String,
+    pub sql: String,
+    pub modified: chrono::DateTime<chrono::Local>,
+}
+
+/// One executed statement, shown in the History Log.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HistoryEntry {
+    pub time: chrono::DateTime<chrono::Local>,
+    pub connection: String,
+    pub database: String,
+    pub sql: String,
+    pub ok: bool,
+    pub message: String,
+    pub elapsed_ms: u128,
+}
+
+/// A reusable code snippet (Snippet library in the SQL editor).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Snippet {
+    pub name: String,
+    pub body: String,
+}
+
+/// An automation (batch) job: a list of steps that can be run on demand or on
+/// a simple interval schedule.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AutomationJob {
+    pub id: String,
+    pub name: String,
+    pub steps: Vec<AutomationStep>,
+    /// 0 = manual only.
+    pub interval_minutes: u64,
+    pub last_run: Option<chrono::DateTime<chrono::Local>>,
+    pub last_status: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum AutomationStep {
+    RunQuery { connection_id: String, database: String, sql: String },
+    Backup { connection_id: String, database: String, output_dir: String },
+    ExportTable { connection_id: String, database: String, table: String, format: String, path: String },
+}
+
+/// Everything persisted to disk.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Workspace {
+    pub connections: Vec<ConnectionConfig>,
+    pub preferences: Preferences,
+    pub queries: Vec<SavedQuery>,
+    pub snippets: Vec<Snippet>,
+    pub automation: Vec<AutomationJob>,
+    pub groups: Vec<String>,
+}
+
+pub fn data_dir() -> PathBuf {
+    let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+    let dir = base.join("navdb-studio");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
+pub fn workspace_path() -> PathBuf {
+    data_dir().join("workspace.json")
+}
+
+pub fn history_path() -> PathBuf {
+    data_dir().join("history.jsonl")
+}
+
+pub fn backups_dir() -> PathBuf {
+    let d = data_dir().join("backups");
+    let _ = std::fs::create_dir_all(&d);
+    d
+}
+
+impl Workspace {
+    pub fn load() -> Self {
+        Self::load_from(&workspace_path())
+    }
+
+    pub fn load_from(path: &std::path::Path) -> Self {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn save(&self) -> anyhow::Result<()> {
+        self.save_to(&workspace_path())
+    }
+
+    pub fn save_to(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        let mut copy = self.clone();
+        for c in &mut copy.connections {
+            if !c.save_password {
+                c.password.clear();
+            }
+        }
+        let json = serde_json::to_string_pretty(&copy)?;
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, json)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
+        }
+        std::fs::rename(tmp, path)?;
+        Ok(())
+    }
+}
+
+pub fn append_history(entry: &HistoryEntry) {
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(history_path()) {
+        if let Ok(line) = serde_json::to_string(entry) {
+            let _ = writeln!(f, "{}", line);
+        }
+    }
+}
+
+pub fn load_history(limit: usize) -> Vec<HistoryEntry> {
+    let Ok(s) = std::fs::read_to_string(history_path()) else { return vec![] };
+    let mut v: Vec<HistoryEntry> = s.lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+    if v.len() > limit {
+        v.drain(0..v.len() - limit);
+    }
+    v
+}
+
+/// Export connections to a portable `.ncx`-like JSON file (Export Connections).
+pub fn export_connections(conns: &[ConnectionConfig], include_passwords: bool) -> String {
+    let list: Vec<ConnectionConfig> = conns
+        .iter()
+        .cloned()
+        .map(|mut c| {
+            if !include_passwords {
+                c.password.clear();
+            }
+            c
+        })
+        .collect();
+    serde_json::to_string_pretty(&list).unwrap_or_default()
+}
+
+pub fn import_connections(json: &str) -> anyhow::Result<Vec<ConnectionConfig>> {
+    Ok(serde_json::from_str(json)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workspace_roundtrip_drops_unsaved_passwords() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("ws.json");
+        let mut ws = Workspace::default();
+        let mut a = ConnectionConfig::new(DbKind::MySql);
+        a.password = "secret".into();
+        a.save_password = false;
+        let mut b = ConnectionConfig::new(DbKind::PostgreSql);
+        b.password = "keep".into();
+        ws.connections = vec![a, b];
+        ws.save_to(&p).unwrap();
+        let back = Workspace::load_from(&p);
+        assert_eq!(back.connections.len(), 2);
+        assert_eq!(back.connections[0].password, "");
+        assert_eq!(back.connections[1].password, "keep");
+    }
+}
