@@ -72,6 +72,8 @@ pub fn dump(
     };
     let total = tables.len() + views.len();
     let mut done = 0;
+    // PostgreSQL has no session switch to disable FK checks: constraints are added at the end
+    let mut deferred_fks: Vec<String> = Vec::new();
     for t in &tables {
         progress(done, total, t);
         let path = scope.path(t.clone());
@@ -84,6 +86,19 @@ pub fn dump(
             let mut def_no_triggers = def.clone();
             if !o.include_triggers {
                 def_no_triggers.triggers.clear();
+            }
+            if d == crate::Dialect::Postgres {
+                for fk in std::mem::take(&mut def_no_triggers.foreign_keys) {
+                    let mut only_fk = def.clone();
+                    only_fk.foreign_keys = vec![fk.clone()];
+                    let mut without = def.clone();
+                    without.foreign_keys.clear();
+                    deferred_fks.extend(crate::ddl::alter_table(d, &without, &only_fk));
+                }
+                // triggers may reference other tables too; create them after the data as well
+                for tr in std::mem::take(&mut def_no_triggers.triggers) {
+                    deferred_fks.push(crate::ddl::create_trigger(d, &path, &tr));
+                }
             }
             let ddl = if d == crate::Dialect::Postgres {
                 crate::ddl::script(&crate::ddl::create_table(d, &def_no_triggers))
@@ -138,6 +153,13 @@ pub fn dump(
             }
         }
         done += 1;
+    }
+    if !deferred_fks.is_empty() {
+        writeln!(w, "-- ----------------------------\n-- Foreign keys & triggers\n-- ----------------------------")?;
+        for s in &deferred_fks {
+            writeln!(w, "{};", s)?;
+        }
+        writeln!(w)?;
     }
     if o.structure {
         for v in &views {

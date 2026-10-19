@@ -28,11 +28,16 @@ impl NavApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let ctx = cc.egui_ctx.clone();
         let notify: navdb_core::session::Notify = Arc::new(move || ctx.request_repaint());
-        let st = AppState::new(notify);
+        let mut st = AppState::new(notify);
         egui_extras::install_image_loaders(&cc.egui_ctx);
+        let mut tabs: Vec<Box<dyn Tab>> = vec![Box::new(ObjectsTab::new())];
+        // scheduled automation jobs run from the Automation tab's tick(), so keep it open
+        if st.ws.automation.iter().any(|j| j.interval_minutes > 0) {
+            tabs.push(Box::new(crate::tabs::automation::AutomationTab::new(&mut st)));
+        }
         Self {
             st,
-            tabs: vec![Box::new(ObjectsTab::new())],
+            tabs,
             active: 0,
             dialogs: Vec::new(),
             tree: tree::TreeState::default(),

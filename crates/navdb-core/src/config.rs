@@ -296,8 +296,11 @@ pub struct Workspace {
 }
 
 pub fn data_dir() -> PathBuf {
-    let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    let dir = base.join("navdb-studio");
+    // NAVDB_DATA_DIR isolates test runs from the user's real settings
+    let dir = match std::env::var_os("NAVDB_DATA_DIR") {
+        Some(d) => PathBuf::from(d),
+        None => dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("navdb-studio"),
+    };
     let _ = std::fs::create_dir_all(&dir);
     dir
 }
