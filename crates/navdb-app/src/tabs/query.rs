@@ -5,9 +5,11 @@ use std::collections::HashMap;
 
 use egui::{RichText, Ui};
 use navdb_core::config::{SavedQuery, Snippet};
+use navdb_core::complete::{self, Item, ItemKind, NoCatalog};
 use navdb_core::{sqlutil, DbKind, Dialect, Pending, QueryResult, Scope, Session};
 
 use super::Tab;
+use crate::catalog::AppCatalog;
 use crate::commands as cmd;
 use crate::state::AppState;
 use crate::ui::grid::{self, GridOptions, GridState};
@@ -507,14 +509,33 @@ impl Tab for QueryTab {
         }
         ui.separator();
 
-        let words = self.completion_words(st);
         let tab_id = self.id.clone();
+        let sql_engine = self.kind.query_language() == "sql";
+        let words = if sql_engine { Vec::new() } else { self.completion_words(st) };
+        let snippets: Vec<Item> = st
+            .ws
+            .snippets
+            .iter()
+            .map(|s| Item { label: s.name.clone(), insert: s.body.clone(), cursor_back: 0, kind: ItemKind::Snippet, detail: "snippet".into(), score: 50 })
+            .collect();
+        let (conn, scope, dialect) = (self.conn.clone(), self.scope.clone(), self.dialect);
         egui::TopBottomPanel::top(egui::Id::new(("q-editor", &tab_id)))
             .resizable(true)
             .default_height(self.editor_height)
             .height_range(80.0..=ui.available_height() - 80.0)
             .show_inside(ui, |ui| {
-                self.editor.ui(ui, &format!("sql-{}", tab_id), &words);
+                let id = format!("sql-{}", tab_id);
+                if !sql_engine {
+                    self.editor.ui(ui, &id, &words);
+                    return;
+                }
+                self.editor.ui_with(ui, &id, &mut |text: &str, cursor: usize, explicit: bool| match (&conn, &scope) {
+                    (Some(conn), Some(scope)) => {
+                        let mut cat = AppCatalog { st: &mut *st, conn, scope };
+                        complete::complete(text, cursor, dialect, &mut cat, explicit, &snippets)
+                    }
+                    _ => complete::complete(text, cursor, dialect, &mut NoCatalog, explicit, &snippets),
+                });
             });
 
         // result panes

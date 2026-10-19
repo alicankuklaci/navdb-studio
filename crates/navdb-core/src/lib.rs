@@ -2,6 +2,7 @@
 //! drivers, metadata model, SQL dialects, DDL/DML generation, import/export and
 //! the background session worker used by the GUI.
 
+pub mod complete;
 pub mod config;
 pub mod datagen;
 pub mod ddl;

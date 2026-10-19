@@ -2,13 +2,17 @@
 //! find/replace and comment toggling.
 
 use egui::text::{CCursor, CCursorRange};
-use egui::{Key, Modifiers, RichText, Ui};
+use egui::{Color32, Key, Modifiers, RichText, Ui};
+use egui_phosphor::regular as ph;
+use navdb_core::complete::{self, Completion, Item, ItemKind};
 use navdb_core::sqlutil;
+
+/// Produces completions for (text, cursor char index, explicitly requested).
+pub type Completer<'a> = dyn FnMut(&str, usize, bool) -> Option<Completion> + 'a;
 
 #[derive(Default)]
 pub struct SqlEditor {
     pub text: String,
-    pub completions: Vec<String>,
     popup: Option<Popup>,
     pub find_open: bool,
     pub find: String,
@@ -24,13 +28,37 @@ pub struct SqlEditor {
     pub language: String,
     /// Line-number gutter built from the last layout, so wrapped rows get no number.
     gutter: String,
+    /// Text length last frame: completion opens on typing, not on deleting.
+    last_len: usize,
 }
 
 struct Popup {
     start: usize,
-    items: Vec<String>,
+    end: usize,
+    items: Vec<Item>,
     selected: usize,
     pos: egui::Pos2,
+    /// Cursor the list was computed for; moving away closes it.
+    cursor: usize,
+    /// Metadata was still loading: recompute until it's all there.
+    incomplete: bool,
+    explicit: bool,
+    scroll: bool,
+}
+
+fn kind_icon(k: ItemKind) -> (&'static str, Color32) {
+    match k {
+        ItemKind::Keyword => (ph::TEXT_T, Color32::from_rgb(0x8a, 0x8f, 0x98)),
+        ItemKind::Function => (ph::FUNCTION, Color32::from_rgb(0xb0, 0x7c, 0xe0)),
+        ItemKind::Database => (ph::DATABASE, Color32::from_rgb(0xe0, 0xa0, 0x40)),
+        ItemKind::Schema => (ph::FOLDER_SIMPLE, Color32::from_rgb(0xe0, 0xa0, 0x40)),
+        ItemKind::Table => (ph::TABLE, Color32::from_rgb(0x4a, 0x9e, 0xe8)),
+        ItemKind::View => (ph::EYE, Color32::from_rgb(0x4a, 0xb8, 0xa8)),
+        ItemKind::Column => (ph::COLUMNS, Color32::from_rgb(0x5c, 0xb8, 0x5c)),
+        ItemKind::Alias => (ph::AT, Color32::from_rgb(0x4a, 0x9e, 0xe8)),
+        ItemKind::Snippet => (ph::CODE_SIMPLE, Color32::from_rgb(0xd0, 0x70, 0x70)),
+        ItemKind::Word => (ph::TEXT_ALIGN_LEFT, Color32::from_rgb(0x8a, 0x8f, 0x98)),
+    }
 }
 
 /// One number per logical line; soft-wrapped continuation rows stay blank.
@@ -129,7 +157,14 @@ impl SqlEditor {
         }
     }
 
+    /// Editor with plain word completion over `extra_words` and SQL keywords.
     pub fn ui(&mut self, ui: &mut Ui, id_salt: &str, extra_words: &[String]) -> egui::Response {
+        let mut words = |text: &str, cursor: usize, explicit: bool| complete::complete_words(text, cursor, extra_words, sqlutil::KEYWORDS, explicit);
+        self.ui_with(ui, id_salt, &mut words)
+    }
+
+    /// Editor whose completion list comes from `completer`.
+    pub fn ui_with(&mut self, ui: &mut Ui, id_salt: &str, completer: &mut Completer) -> egui::Response {
         let id = ui.make_persistent_id(id_salt);
         self.id = Some(id);
         // find / replace bar
@@ -163,14 +198,27 @@ impl SqlEditor {
         }
 
         // completion keys must be consumed before the TextEdit sees them
+        let focused = ui.memory(|m| m.has_focus(id));
+        let explicit = focused && ui.input_mut(|i| i.consume_key(Modifiers::CTRL, Key::Space));
         let mut accept = false;
         if let Some(p) = &mut self.popup {
+            let n = p.items.len().max(1);
             ui.input_mut(|i| {
                 if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
-                    p.selected = (p.selected + 1).min(p.items.len().saturating_sub(1));
+                    p.selected = (p.selected + 1) % n;
+                    p.scroll = true;
                 }
                 if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
-                    p.selected = p.selected.saturating_sub(1);
+                    p.selected = (p.selected + n - 1) % n;
+                    p.scroll = true;
+                }
+                if i.consume_key(Modifiers::NONE, Key::PageDown) {
+                    p.selected = (p.selected + 8).min(n - 1);
+                    p.scroll = true;
+                }
+                if i.consume_key(Modifiers::NONE, Key::PageUp) {
+                    p.selected = p.selected.saturating_sub(8);
+                    p.scroll = true;
                 }
                 if i.consume_key(Modifiers::NONE, Key::Enter) || i.consume_key(Modifiers::NONE, Key::Tab) {
                     accept = true;
@@ -182,10 +230,8 @@ impl SqlEditor {
         }
         if accept {
             if let Some(p) = self.popup.take() {
-                if let Some(word) = p.items.get(p.selected) {
-                    let w = word.clone();
-                    let end = self.cursor;
-                    self.replace_range(p.start, end, &w);
+                if let Some(it) = p.items.get(p.selected).cloned() {
+                    self.accept(&p, &it);
                 }
             }
         }
@@ -261,64 +307,124 @@ impl SqlEditor {
         }
 
         // auto-completion popup
-        if self.auto_complete && resp.changed() {
-            let (start, word) = sqlutil::word_before(&self.text, self.cursor);
-            if word.chars().count() >= 2 {
-                let lw = word.to_ascii_lowercase();
-                let mut items: Vec<String> = Vec::new();
-                for w in extra_words.iter().chain(self.completions.iter()) {
-                    if w.to_ascii_lowercase().starts_with(&lw) && !w.eq_ignore_ascii_case(&word) && !items.contains(w) {
-                        items.push(w.clone());
-                    }
+        let typed = resp.changed();
+        let grew = typed && self.text.chars().count() > self.last_len;
+        self.last_len = self.text.chars().count();
+        let refresh = self.popup.as_ref().is_some_and(|p| p.incomplete && p.cursor == self.cursor);
+        if self.auto_complete && (explicit || (typed && (grew || self.popup.is_some())) || refresh) {
+            let was = self.popup.take().filter(|_| refresh && !typed && !explicit);
+            let explicit = explicit || was.as_ref().is_some_and(|p| p.explicit);
+            match completer(&self.text, self.cursor, explicit) {
+                Some(c) if !c.items.is_empty() || c.incomplete => {
+                    let pos = out
+                        .galley
+                        .pos_from_cursor(&out.galley.from_ccursor(CCursor::new(self.cursor)))
+                        .left_bottom()
+                        + out.galley_pos.to_vec2();
+                    // keep the highlighted entry when a refresh only adds names
+                    let selected = was
+                        .filter(|w| w.selected > 0)
+                        .and_then(|w| w.items.get(w.selected).and_then(|cur| c.items.iter().position(|i| i.label == cur.label)))
+                        .unwrap_or(0);
+                    self.popup = Some(Popup {
+                        start: c.start,
+                        end: c.end,
+                        items: c.items,
+                        selected,
+                        pos,
+                        cursor: self.cursor,
+                        incomplete: c.incomplete,
+                        explicit,
+                        scroll: true,
+                    });
                 }
-                for k in sqlutil::KEYWORDS {
-                    if k.to_ascii_lowercase().starts_with(&lw) && !k.eq_ignore_ascii_case(&word) {
-                        let k = if self.uppercase_keywords { k.to_string() } else { k.to_ascii_lowercase() };
-                        if !items.contains(&k) {
-                            items.push(k);
-                        }
-                    }
-                }
-                items.truncate(12);
-                let pos = out
-                    .galley
-                    .pos_from_cursor(&out.galley.from_ccursor(CCursor::new(self.cursor)))
-                    .left_bottom()
-                    + out.galley_pos.to_vec2();
-                self.popup = if items.is_empty() { None } else { Some(Popup { start, items, selected: 0, pos }) };
-            } else {
-                self.popup = None;
+                _ => {}
             }
+        } else if typed {
+            self.popup = None;
         }
         if let Some(p) = &self.popup {
-            if p.items.is_empty() || !resp.has_focus() {
+            if (p.items.is_empty() && !p.incomplete) || !resp.has_focus() || p.cursor != self.cursor {
                 self.popup = None;
             }
         }
         let mut clicked: Option<usize> = None;
-        if let Some(p) = &self.popup {
+        if let Some(p) = &mut self.popup {
+            let font = egui::FontId::monospace(self.font_size.max(12.0));
+            let small = egui::FontId::proportional(11.0);
             egui::Area::new(id.with("completion"))
                 .order(egui::Order::Foreground)
                 .fixed_pos(p.pos + egui::vec2(0.0, 2.0))
                 .show(ui.ctx(), |ui| {
-                    egui::Frame::popup(ui.style()).show(ui, |ui| {
-                        ui.set_min_width(180.0);
-                        for (i, it) in p.items.iter().enumerate() {
-                            if ui.selectable_label(i == p.selected, RichText::new(it).monospace()).clicked() {
-                                clicked = Some(i);
-                            }
+                    egui::Frame::popup(ui.style()).inner_margin(4.0).show(ui, |ui| {
+                        let width = ui.fonts(|f| {
+                            p.items
+                                .iter()
+                                .map(|it| {
+                                    let l = f.layout_no_wrap(it.label.clone(), font.clone(), Color32::WHITE).size().x;
+                                    let d = f.layout_no_wrap(it.detail.clone(), small.clone(), Color32::WHITE).size().x;
+                                    26.0 + l + 24.0 + d
+                                })
+                                .fold(240.0f32, f32::max)
+                                .min(620.0)
+                        });
+                        if p.items.is_empty() {
+                            ui.label(RichText::new("Loading…").weak());
+                            return;
                         }
+                        let row_h = font.size + 8.0;
+                        egui::ScrollArea::vertical().max_height(row_h * 10.0 + 2.0).auto_shrink([true, true]).show(ui, |ui| {
+                            ui.set_width(width);
+                            for (i, it) in p.items.iter().enumerate() {
+                                let (rect, r) = ui.allocate_exact_size(egui::vec2(width, row_h), egui::Sense::click());
+                                let v = ui.visuals();
+                                if i == p.selected {
+                                    ui.painter().rect_filled(rect, 3.0, v.selection.bg_fill);
+                                    if p.scroll {
+                                        ui.scroll_to_rect(rect, None);
+                                    }
+                                } else if r.hovered() {
+                                    ui.painter().rect_filled(rect, 3.0, v.widgets.hovered.weak_bg_fill);
+                                }
+                                let text_col = if i == p.selected { v.selection.stroke.color } else { v.text_color() };
+                                let (glyph, col) = kind_icon(it.kind);
+                                let y = rect.center().y;
+                                let p_ = ui.painter();
+                                p_.text(egui::pos2(rect.left() + 4.0, y), egui::Align2::LEFT_CENTER, glyph, egui::FontId::proportional(13.0), col);
+                                p_.text(egui::pos2(rect.left() + 24.0, y), egui::Align2::LEFT_CENTER, &it.label, font.clone(), text_col);
+                                if !it.detail.is_empty() {
+                                    p_.text(egui::pos2(rect.right() - 6.0, y), egui::Align2::RIGHT_CENTER, &it.detail, small.clone(), v.weak_text_color());
+                                }
+                                if r.clicked() {
+                                    clicked = Some(i);
+                                }
+                            }
+                        });
+                        p.scroll = false;
                     });
                 });
         }
         if let Some(i) = clicked {
             if let Some(p) = self.popup.take() {
-                let w = p.items[i].clone();
-                let end = self.cursor;
-                self.replace_range(p.start, end, &w);
+                let it = p.items[i].clone();
+                self.accept(&p, &it);
             }
         }
         resp
+    }
+}
+
+impl SqlEditor {
+    fn accept(&mut self, p: &Popup, it: &Item) {
+        let mut ins = it.insert.clone();
+        if !self.uppercase_keywords && matches!(it.kind, ItemKind::Keyword | ItemKind::Function) {
+            ins = ins.to_lowercase();
+        }
+        let len = self.text.chars().count();
+        self.replace_range(p.start.min(len), p.end.min(len), &ins);
+        let back = it.cursor_back.min(ins.chars().count());
+        self.pending_cursor = Some(p.start + ins.chars().count() - back);
+        self.last_len = self.text.chars().count();
     }
 }
 

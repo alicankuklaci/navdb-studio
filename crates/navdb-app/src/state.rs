@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use navdb_core::config::{self, ConnectionConfig, HistoryEntry, Workspace};
 use navdb_core::session::Notify;
-use navdb_core::{ObjectInfo, ObjectKind, Pending, Scope, Session};
+use navdb_core::{ColumnDef, ObjectInfo, ObjectKind, Pending, Scope, Session};
 
 use crate::dialogs::Dialog;
 use crate::tabs::Tab;
@@ -76,6 +76,8 @@ pub struct OpenConn {
     pub databases: Loadable<Vec<String>>,
     pub schemas: HashMap<String, Loadable<Vec<String>>>,
     pub objects: HashMap<(Scope, ObjectKind), Loadable<Vec<ObjectInfo>>>,
+    /// Table columns loaded on demand for auto-completion, shared by all tabs.
+    pub columns: HashMap<(Scope, String), Loadable<Vec<ColumnDef>>>,
     pub kinds: Loadable<Vec<ObjectKind>>,
     pub expanded: HashSet<String>,
 }
@@ -93,6 +95,7 @@ impl OpenConn {
             databases,
             schemas: HashMap::new(),
             objects: HashMap::new(),
+            columns: HashMap::new(),
             kinds,
             expanded: HashSet::new(),
         }
@@ -106,6 +109,9 @@ impl OpenConn {
             v.poll();
         }
         for v in self.objects.values_mut() {
+            v.poll();
+        }
+        for v in self.columns.values_mut() {
             v.poll();
         }
     }
@@ -144,12 +150,29 @@ impl OpenConn {
         self.objects.get(&(scope.clone(), kind))
     }
 
+    /// Columns of `table`, loading them in the background on first use.
+    pub fn columns(&mut self, scope: &Scope, table: &str) -> Option<&[ColumnDef]> {
+        let e = self.columns.entry((scope.clone(), table.to_string())).or_default();
+        if e.is_not_loaded() {
+            let p = scope.path(table);
+            *e = Loadable::Loading(self.session.run(move |d| d.columns(&p)));
+        }
+        e.poll();
+        match e {
+            Loadable::Ready(v) => Some(v.as_slice()),
+            Loadable::Failed(_) => Some(&[]),
+            _ => None,
+        }
+    }
+
     pub fn refresh_scope(&mut self, scope: &Scope) {
         self.objects.retain(|(s, _), _| s != scope);
+        self.columns.retain(|(s, _), _| s != scope);
     }
 
     pub fn refresh_all(&mut self) {
         self.objects.clear();
+        self.columns.clear();
         self.schemas.clear();
         self.databases = Loadable::Loading(self.session.run(|d| d.list_databases()));
     }

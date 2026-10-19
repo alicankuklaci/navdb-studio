@@ -1,6 +1,7 @@
 //! NavDB Studio – a multi-database administration GUI written in Rust.
 
 mod app;
+mod catalog;
 mod commands;
 mod dialogs;
 mod state;
