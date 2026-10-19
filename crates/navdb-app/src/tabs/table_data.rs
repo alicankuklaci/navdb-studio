@@ -290,9 +290,16 @@ impl TableDataTab {
                 }
             }
         }
+        let first = row.first().map(|v| v.edit_text()).unwrap_or_default();
         self.buf.new_rows.push(row);
         let r = self.buf.row_count() - 1;
         self.grid.cursor = Some((r, 0));
+        // start typing into the new row right away
+        if n > 0 {
+            self.grid.editing = Some((r, 0));
+            self.grid.edit_buf = first;
+            self.grid.edit_requested_focus = true;
+        }
         self.grid.scroll_to_row = Some(r);
         self.form_row = r;
         self.form_bufs.clear();
@@ -442,7 +449,7 @@ impl TableDataTab {
                         FilterOp::Between => "low, high",
                         _ => "value",
                     };
-                    ui.add(egui::TextEdit::singleline(&mut f.value).hint_text(hint).desired_width(200.0));
+                    ui.add(egui::TextEdit::singleline(&mut f.value).hint_text(hint).desired_width(200.0).min_size(egui::vec2(200.0, 0.0)));
                 }
                 if ui.small_button("✖").clicked() {
                     remove = Some(i);

@@ -458,7 +458,7 @@ impl Dialog for BackupDialog {
                         ui.label(RichText::new("New Backup").strong());
                         ui.horizontal(|ui| {
                             ui.label("Comment:");
-                            ui.add(egui::TextEdit::singleline(&mut self.comment).desired_width(380.0).hint_text("optional"));
+                            ui.add(egui::TextEdit::singleline(&mut self.comment).desired_width(380.0).min_size(egui::vec2(380.0, 0.0)).hint_text("optional"));
                         });
                         ui.checkbox(&mut self.structure_only, "Structure only (no data)");
                         if self.kind == DbKind::Sqlite {

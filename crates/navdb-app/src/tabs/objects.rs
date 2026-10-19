@@ -68,6 +68,8 @@ impl Tab for ObjectsTab {
                     });
                 });
                 if let Some(d) = pick {
+                    let now = ui.input(|i| i.time);
+                    ui.ctx().data_mut(|m| m.insert_temp(nav_time_id(), now));
                     st.selection = Selection {
                         conn: Some(conn.clone()),
                         scope: Some(navdb_core::Scope::new(d, if cfg.kind.has_schemas() { Some("public".into()) } else { None })),
@@ -136,7 +138,8 @@ impl Tab for ObjectsTab {
                     st.refresh_scope(&conn, &scope);
                 }
                 ui.toggle_value(&mut self.detail, "☰ Detail");
-                ui.add(egui::TextEdit::singleline(&mut st.object_filter).hint_text("🔍 Filter").desired_width(160.0));
+                let w = ui.available_width().clamp(60.0, 160.0);
+                ui.add(egui::TextEdit::singleline(&mut st.object_filter).hint_text("🔍 Filter").desired_width(w));
             });
         });
         ui.separator();
@@ -180,7 +183,18 @@ impl Tab for ObjectsTab {
             });
         } else {
             let show_rows = matches!(kind, ObjectKind::Table | ObjectKind::MaterializedView);
-            let extra_keys: Vec<String> = list.first().map(|o| o.extra.iter().map(|(k, _)| k.clone()).collect()).unwrap_or_default();
+            // only columns that carry data for this object kind (views have no engine, collation...)
+            let extra_keys: Vec<String> = list
+                .first()
+                .map(|o| o.extra.iter().map(|(k, _)| k.clone()).collect::<Vec<_>>())
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|k| list.iter().any(|o| o.extra.iter().any(|(kk, v)| kk == k && !v.is_empty())))
+                .collect();
+            let use_engine = list.iter().any(|o| !o.engine.is_empty());
+            let show_first = use_engine || list.iter().any(|o| !o.created.is_empty());
+            let show_modified = list.iter().any(|o| !o.modified.is_empty());
+            let n_fixed = usize::from(show_first) + usize::from(show_modified);
             let mut tb = TableBuilder::new(ui)
                 .striped(true)
                 .resizable(true)
@@ -190,7 +204,7 @@ impl Tab for ObjectsTab {
             if show_rows {
                 tb = tb.column(Column::initial(90.0)).column(Column::initial(100.0));
             }
-            tb = tb.columns(Column::initial(120.0).clip(true), 2 + extra_keys.len()).column(Column::remainder().clip(true));
+            tb = tb.columns(Column::initial(120.0).clip(true), n_fixed + extra_keys.len()).column(Column::remainder().clip(true));
             tb.header(22.0, |mut h| {
                 h.col(|ui| {
                     ui.strong("Name");
@@ -203,12 +217,16 @@ impl Tab for ObjectsTab {
                         ui.strong("Data Length");
                     });
                 }
-                h.col(|ui| {
-                    ui.strong(if cfg.kind == DbKind::MySql || cfg.kind == DbKind::MariaDb { "Engine" } else { "Created" });
-                });
-                h.col(|ui| {
-                    ui.strong("Modified");
-                });
+                if show_first {
+                    h.col(|ui| {
+                        ui.strong(if use_engine { "Engine" } else { "Created" });
+                    });
+                }
+                if show_modified {
+                    h.col(|ui| {
+                        ui.strong("Modified");
+                    });
+                }
                 for k in &extra_keys {
                     h.col(|ui| {
                         ui.strong(k);
@@ -234,12 +252,16 @@ impl Tab for ObjectsTab {
                             ui.label(o.data_length.map(ui::format_bytes).unwrap_or_default());
                         }).1);
                     }
-                    resps.push(row.col(|ui| {
-                        ui.label(if o.engine.is_empty() { &o.created } else { &o.engine });
-                    }).1);
-                    resps.push(row.col(|ui| {
-                        ui.label(&o.modified);
-                    }).1);
+                    if show_first {
+                        resps.push(row.col(|ui| {
+                            ui.label(if use_engine { &o.engine } else { &o.created });
+                        }).1);
+                    }
+                    if show_modified {
+                        resps.push(row.col(|ui| {
+                            ui.label(&o.modified);
+                        }).1);
+                    }
                     for k in &extra_keys {
                         let v = o.extra.iter().find(|(kk, _)| kk == k).map(|(_, v)| v.clone()).unwrap_or_default();
                         resps.push(row.col(|ui| {
@@ -280,7 +302,9 @@ impl Tab for ObjectsTab {
             st.selection.object = Some(name);
             st.selection.kind = Some(kind);
         }
-        if let Some(n) = double {
+        // the second click of a double-click on a database chip lands on the freshly shown list
+        let since_nav = ui.input(|i| i.time) - ui.ctx().data(|m| m.get_temp::<f64>(nav_time_id())).unwrap_or(f64::MIN);
+        if let Some(n) = double.filter(|_| since_nav > 0.5) {
             cmd::open_object(st, &conn, &scope, kind, &n);
         }
         let _ = menu_target;
@@ -332,4 +356,8 @@ fn welcome(ui: &mut Ui, st: &mut AppState) {
             }
         }
     });
+}
+
+fn nav_time_id() -> egui::Id {
+    egui::Id::new("objects-db-picked-at")
 }

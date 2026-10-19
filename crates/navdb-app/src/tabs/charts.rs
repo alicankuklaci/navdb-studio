@@ -705,7 +705,7 @@ impl ChartsTab {
     fn dashboard_ui(&mut self, ui: &mut Ui, st: &mut AppState) {
         ui.horizontal(|ui| {
             ui.label("Title:");
-            ui.add(egui::TextEdit::singleline(&mut self.title).desired_width(200.0));
+            ui.add(egui::TextEdit::singleline(&mut self.title).desired_width(200.0).min_size(egui::vec2(200.0, 0.0)));
             ui.separator();
             ui.label("Columns:");
             for n in 1..=4 {

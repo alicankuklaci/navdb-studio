@@ -410,10 +410,14 @@ impl DumpDialog {
             }
             _ => Loadable::NotLoaded,
         };
-        let file = match &scope.schema {
-            Some(s) => format!("{}_{}.sql", scope.db, s),
-            None => format!("{}.sql", scope.db),
+        // dumping picked tables: name the file after them and leave out views/routines,
+        // which usually depend on tables outside the selection
+        let file = match (&scope.schema, tables.as_slice()) {
+            (_, [one]) => format!("{}.sql", one),
+            (Some(s), _) => format!("{}_{}.sql", scope.db, s),
+            (None, _) => format!("{}.sql", scope.db),
         };
+        let whole_db = tables.is_empty();
         let path = home_dir().join(safe_file_name(&file)).display().to_string();
         Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -423,7 +427,7 @@ impl DumpDialog {
             scope,
             session,
             path,
-            opts: DumpOptions { data: with_data, ..Default::default() },
+            opts: DumpOptions { data: with_data, include_views: whole_db, include_routines: whole_db, ..Default::default() },
             preselect: tables,
             tables: loading,
             selected: vec![],
@@ -496,7 +500,7 @@ impl Dialog for DumpDialog {
                 egui::Grid::new(("dump-grid", &self.id)).num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                     ui.label("Output file:");
                     ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut self.path).desired_width(360.0));
+                        ui.add(egui::TextEdit::singleline(&mut self.path).desired_width(360.0).min_size(egui::vec2(360.0, 0.0)));
                         if ui.button("…").on_hover_text("Choose file").clicked() {
                             let name = Path::new(&self.path).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
                             if let Some(p) = ui::save_file_dialog(&name, "sql") {
@@ -527,7 +531,7 @@ impl Dialog for DumpDialog {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Tables").strong());
-                    ui.add(egui::TextEdit::singleline(&mut self.table_filter).hint_text("Filter").desired_width(140.0));
+                    ui.add(egui::TextEdit::singleline(&mut self.table_filter).hint_text("Filter").desired_width(140.0).min_size(egui::vec2(140.0, 0.0)));
                     if ui.small_button("Select All").clicked() {
                         self.selected.iter_mut().for_each(|s| s.1 = true);
                     }

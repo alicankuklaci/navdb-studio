@@ -154,10 +154,10 @@ impl Dialog for PreferencesDialog {
                                     ui.add(egui::DragValue::new(&mut p.records_per_page).range(1..=1_000_000).speed(10));
                                 });
                                 row(ui, "Display NULL as", |ui| {
-                                    ui.add(egui::TextEdit::singleline(&mut p.show_null_as).desired_width(140.0));
+                                    ui.add(egui::TextEdit::singleline(&mut p.show_null_as).desired_width(140.0).min_size(egui::vec2(140.0, 0.0)));
                                 });
                                 row(ui, "Date/time format", |ui| {
-                                    ui.add(egui::TextEdit::singleline(&mut p.date_format).desired_width(180.0).font(egui::TextStyle::Monospace));
+                                    ui.add(egui::TextEdit::singleline(&mut p.date_format).desired_width(180.0).min_size(egui::vec2(180.0, 0.0)).font(egui::TextStyle::Monospace));
                                 });
                                 row(ui, "", |ui| {
                                     let sample = chrono::Local::now().format(&p.date_format);

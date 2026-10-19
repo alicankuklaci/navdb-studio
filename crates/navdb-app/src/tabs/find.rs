@@ -649,7 +649,7 @@ impl Tab for FindInDbTab {
             return;
         }
         ui.horizontal(|ui| {
-            let r = ui.add(egui::TextEdit::singleline(&mut self.text).hint_text("Text to find").desired_width(260.0));
+            let r = ui.add(egui::TextEdit::singleline(&mut self.text).hint_text("Text to find").desired_width(260.0).min_size(egui::vec2(260.0, 0.0)));
             if self.focus {
                 r.request_focus();
                 self.focus = false;

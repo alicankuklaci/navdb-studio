@@ -52,7 +52,7 @@ impl ConnectionDialog {
         egui::Grid::new("conn-general").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
             ui.label("Connection Name:");
             let hint = self.cfg.display_name();
-            ui.add(egui::TextEdit::singleline(&mut self.cfg.name).hint_text(hint).desired_width(320.0));
+            ui.add(egui::TextEdit::singleline(&mut self.cfg.name).hint_text(hint).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)));
             ui.end_row();
             ui.label("Type:");
             egui::ComboBox::from_id_salt("conn-kind").selected_text(self.cfg.kind.label()).show_ui(ui, |ui| {
@@ -74,7 +74,7 @@ impl ConnectionDialog {
             if self.cfg.kind.is_file_based() {
                 ui.label("Database File:");
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut self.cfg.database).desired_width(260.0).hint_text("/path/to/file.sqlite"));
+                    ui.add(egui::TextEdit::singleline(&mut self.cfg.database).desired_width(260.0).min_size(egui::vec2(260.0, 0.0)).hint_text("/path/to/file.sqlite"));
                     if ui.button("Browse…").clicked() {
                         if let Some(p) = rfd::FileDialog::new().add_filter("SQLite", &["sqlite", "sqlite3", "db", "db3", "s3db"]).pick_file() {
                             self.cfg.database = p.display().to_string();
@@ -92,20 +92,20 @@ impl ConnectionDialog {
                 ui.end_row();
             } else {
                 ui.label("Host:");
-                ui.add(egui::TextEdit::singleline(&mut self.cfg.host).desired_width(320.0));
+                ui.add(egui::TextEdit::singleline(&mut self.cfg.host).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)));
                 ui.end_row();
                 ui.label("Port:");
-                if ui.add(egui::TextEdit::singleline(&mut self.port_text).desired_width(80.0)).changed() {
+                if ui.add(egui::TextEdit::singleline(&mut self.port_text).desired_width(80.0).min_size(egui::vec2(80.0, 0.0))).changed() {
                     if let Ok(p) = self.port_text.trim().parse() {
                         self.cfg.port = p;
                     }
                 }
                 ui.end_row();
                 ui.label(if self.cfg.kind == DbKind::Redis { "Username (ACL):" } else { "User Name:" });
-                ui.add(egui::TextEdit::singleline(&mut self.cfg.user).desired_width(320.0));
+                ui.add(egui::TextEdit::singleline(&mut self.cfg.user).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)));
                 ui.end_row();
                 ui.label("Password:");
-                ui.add(egui::TextEdit::singleline(&mut self.cfg.password).password(true).desired_width(320.0));
+                ui.add(egui::TextEdit::singleline(&mut self.cfg.password).password(true).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)));
                 ui.end_row();
                 ui.label("");
                 ui.checkbox(&mut self.cfg.save_password, "Save password");
@@ -115,7 +115,7 @@ impl ConnectionDialog {
                     DbKind::Redis => "Database (db0..):",
                     _ => "Default Database:",
                 });
-                ui.add(egui::TextEdit::singleline(&mut self.cfg.database).desired_width(320.0).hint_text(match self.cfg.kind {
+                ui.add(egui::TextEdit::singleline(&mut self.cfg.database).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)).hint_text(match self.cfg.kind {
                     DbKind::PostgreSql => "postgres",
                     DbKind::Redis => "db0",
                     _ => "(optional)",
@@ -143,7 +143,7 @@ impl ConnectionDialog {
                 ui.end_row();
             }
             ui.label("Group:");
-            ui.add(egui::TextEdit::singleline(&mut self.cfg.group).desired_width(200.0));
+            ui.add(egui::TextEdit::singleline(&mut self.cfg.group).desired_width(200.0).min_size(egui::vec2(200.0, 0.0)));
             ui.end_row();
             ui.label("");
             ui.checkbox(&mut self.cfg.read_only, "Read-only (table editing disabled)");
@@ -166,8 +166,8 @@ impl ConnectionDialog {
             let mut remove = None;
             for (i, (alias, path)) in self.cfg.attached.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(alias).desired_width(100.0).hint_text("alias"));
-                    ui.add(egui::TextEdit::singleline(path).desired_width(300.0).hint_text("file"));
+                    ui.add(egui::TextEdit::singleline(alias).desired_width(100.0).min_size(egui::vec2(100.0, 0.0)).hint_text("alias"));
+                    ui.add(egui::TextEdit::singleline(path).desired_width(300.0).min_size(egui::vec2(300.0, 0.0)).hint_text("file"));
                     if ui.small_button("✖").clicked() {
                         remove = Some(i);
                     }
@@ -238,7 +238,7 @@ impl ConnectionDialog {
                     ("Client Key:", &mut self.cfg.ssl.client_key),
                 ] {
                     ui.label(label);
-                    ui.add(egui::TextEdit::singleline(field).desired_width(280.0));
+                    ui.add(egui::TextEdit::singleline(field).desired_width(280.0).min_size(egui::vec2(280.0, 0.0)));
                     if ui.button("…").clicked() {
                         if let Some(p) = rfd::FileDialog::new().pick_file() {
                             *field = p.display().to_string();
@@ -257,17 +257,17 @@ impl ConnectionDialog {
         ui.add_enabled_ui(self.cfg.ssh.enabled, |ui| {
             egui::Grid::new("ssh").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 ui.label("Host:");
-                ui.add(egui::TextEdit::singleline(&mut self.cfg.ssh.host).desired_width(280.0));
+                ui.add(egui::TextEdit::singleline(&mut self.cfg.ssh.host).desired_width(280.0).min_size(egui::vec2(280.0, 0.0)));
                 ui.end_row();
                 ui.label("Port:");
                 ui.add(egui::DragValue::new(&mut self.cfg.ssh.port).range(1..=65535));
                 ui.end_row();
                 ui.label("User Name:");
-                ui.add(egui::TextEdit::singleline(&mut self.cfg.ssh.user).desired_width(280.0));
+                ui.add(egui::TextEdit::singleline(&mut self.cfg.ssh.user).desired_width(280.0).min_size(egui::vec2(280.0, 0.0)));
                 ui.end_row();
                 ui.label("Private Key:");
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut self.cfg.ssh.private_key).desired_width(220.0).hint_text("~/.ssh/id_ed25519"));
+                    ui.add(egui::TextEdit::singleline(&mut self.cfg.ssh.private_key).desired_width(220.0).min_size(egui::vec2(220.0, 0.0)).hint_text("~/.ssh/id_ed25519"));
                     if ui.button("…").clicked() {
                         if let Some(p) = rfd::FileDialog::new().pick_file() {
                             self.cfg.ssh.private_key = p.display().to_string();

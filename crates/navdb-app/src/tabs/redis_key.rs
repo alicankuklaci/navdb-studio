@@ -388,7 +388,7 @@ impl RedisKeyTab {
                 }
             }
             if let Some(buf) = &mut self.rename_buf {
-                let r = ui.add(egui::TextEdit::singleline(buf).desired_width(260.0).font(egui::TextStyle::Monospace));
+                let r = ui.add(egui::TextEdit::singleline(buf).desired_width(260.0).min_size(egui::vec2(260.0, 0.0)).font(egui::TextStyle::Monospace));
                 let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 if ui.button("✔ Rename").clicked() || enter {
                     let n = buf.clone();
@@ -410,7 +410,7 @@ impl RedisKeyTab {
             }
             ui.separator();
             ui.label("TTL:");
-            ui.add(egui::TextEdit::singleline(&mut self.ttl_buf).desired_width(70.0).hint_text("seconds"));
+            ui.add(egui::TextEdit::singleline(&mut self.ttl_buf).desired_width(70.0).min_size(egui::vec2(70.0, 0.0)).hint_text("seconds"));
             if ui.add_enabled(!busy, egui::Button::new("Set TTL")).on_hover_text("EXPIRE (empty or ≤ 0 = PERSIST)").clicked() {
                 let c = match self.ttl_buf.trim().parse::<i64>() {
                     Ok(n) if n > 0 => format!("EXPIRE {} {}", k, n),
@@ -455,7 +455,8 @@ impl RedisKeyTab {
                     if let Some(m) = d.memory {
                         info.push(format!("memory: {}", crate::ui::format_bytes(m)));
                     }
-                    ui.label(RichText::new(info.join("  ·  ")).weak());
+                    // truncate instead of overflowing onto the TTL buttons in narrow windows
+                    ui.add(egui::Label::new(RichText::new(info.join("  ·  ")).weak()).truncate());
                 }
             });
         });
@@ -579,7 +580,7 @@ impl RedisKeyTab {
             }
             ui.separator();
             ui.label("🔍");
-            ui.add(egui::TextEdit::singleline(&mut self.filter).desired_width(180.0).hint_text("Filter"));
+            ui.add(egui::TextEdit::singleline(&mut self.filter).desired_width(180.0).min_size(egui::vec2(180.0, 0.0)).hint_text("Filter"));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let shown = data.elems.len();
                 let note = if shown < data.total { format!("showing {} of {}", shown, data.total) } else { format!("{} elements", data.total.max(shown)) };
@@ -599,7 +600,7 @@ impl RedisKeyTab {
                     match ty {
                         KeyType::Hash => {
                             ui.label("Field");
-                            ui.add(egui::TextEdit::singleline(&mut ed.a).desired_width(400.0));
+                            ui.add(egui::TextEdit::singleline(&mut ed.a).desired_width(400.0).min_size(egui::vec2(400.0, 0.0)));
                             ui.end_row();
                             ui.label("Value");
                             ui.add(egui::TextEdit::multiline(&mut ed.b).desired_width(400.0).desired_rows(3));
@@ -629,15 +630,15 @@ impl RedisKeyTab {
                         }
                         KeyType::ZSet => {
                             ui.label("Member");
-                            ui.add(egui::TextEdit::singleline(&mut ed.a).desired_width(400.0));
+                            ui.add(egui::TextEdit::singleline(&mut ed.a).desired_width(400.0).min_size(egui::vec2(400.0, 0.0)));
                             ui.end_row();
                             ui.label("Score");
-                            ui.add(egui::TextEdit::singleline(&mut ed.b).desired_width(140.0));
+                            ui.add(egui::TextEdit::singleline(&mut ed.b).desired_width(140.0).min_size(egui::vec2(140.0, 0.0)));
                             ui.end_row();
                         }
                         KeyType::Stream => {
                             ui.label("ID");
-                            ui.add(egui::TextEdit::singleline(&mut ed.a).desired_width(200.0).hint_text("*"));
+                            ui.add(egui::TextEdit::singleline(&mut ed.a).desired_width(200.0).min_size(egui::vec2(200.0, 0.0)).hint_text("*"));
                             ui.end_row();
                             ui.label("Fields");
                             ui.vertical(|ui| {
@@ -764,7 +765,7 @@ impl RedisKeyTab {
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             egui::Grid::new(("new-key", &self.id)).num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
                 ui.label("Key name");
-                ui.add(egui::TextEdit::singleline(&mut self.new_name).desired_width(360.0).hint_text("e.g. user:1001"));
+                ui.add(egui::TextEdit::singleline(&mut self.new_name).desired_width(360.0).min_size(egui::vec2(360.0, 0.0)).hint_text("e.g. user:1001"));
                 ui.end_row();
                 ui.label("Type");
                 ui.horizontal(|ui| {
@@ -774,7 +775,7 @@ impl RedisKeyTab {
                 });
                 ui.end_row();
                 ui.label("TTL (seconds)");
-                ui.add(egui::TextEdit::singleline(&mut self.new_ttl).desired_width(120.0).hint_text("no limit"));
+                ui.add(egui::TextEdit::singleline(&mut self.new_ttl).desired_width(120.0).min_size(egui::vec2(120.0, 0.0)).hint_text("no limit"));
                 ui.end_row();
             });
             ui.add_space(8.0);
@@ -896,8 +897,8 @@ fn pair_editor(ui: &mut Ui, rows: &mut Vec<(String, String)>, ha: &str, hb: &str
         ui.label("");
         ui.end_row();
         for (i, (a, b)) in rows.iter_mut().enumerate() {
-            ui.add(egui::TextEdit::singleline(a).desired_width(200.0));
-            ui.add(egui::TextEdit::singleline(b).desired_width(300.0));
+            ui.add(egui::TextEdit::singleline(a).desired_width(200.0).min_size(egui::vec2(200.0, 0.0)));
+            ui.add(egui::TextEdit::singleline(b).desired_width(300.0).min_size(egui::vec2(300.0, 0.0)));
             if ui.small_button(icon::DELETE).clicked() {
                 remove = Some(i);
             }

@@ -22,6 +22,8 @@ pub struct SqlEditor {
     pub auto_complete: bool,
     pub uppercase_keywords: bool,
     pub language: String,
+    /// Line-number gutter built from the last layout, so wrapped rows get no number.
+    gutter: String,
 }
 
 struct Popup {
@@ -29,6 +31,26 @@ struct Popup {
     items: Vec<String>,
     selected: usize,
     pos: egui::Pos2,
+}
+
+/// One number per logical line; soft-wrapped continuation rows stay blank.
+fn gutter_for(galley: &egui::Galley) -> String {
+    let mut out = String::new();
+    let mut n = 1;
+    let mut new_line = true;
+    for row in &galley.rows {
+        if new_line {
+            out.push_str(&format!("{:>4}\n", n));
+            n += 1;
+        } else {
+            out.push('\n');
+        }
+        new_line = row.ends_with_newline;
+    }
+    if new_line && galley.rows.last().is_some_and(|r| r.ends_with_newline) {
+        out.push_str(&format!("{:>4}\n", n));
+    }
+    out
 }
 
 impl SqlEditor {
@@ -122,7 +144,7 @@ impl SqlEditor {
         if self.find_open {
             ui.horizontal(|ui| {
                 ui.label("Find:");
-                let r = ui.add(egui::TextEdit::singleline(&mut self.find).desired_width(160.0));
+                let r = ui.add(egui::TextEdit::singleline(&mut self.find).desired_width(160.0).min_size(egui::vec2(160.0, 0.0)));
                 if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                     self.find_next();
                 }
@@ -130,7 +152,7 @@ impl SqlEditor {
                     self.find_next();
                 }
                 ui.label("Replace:");
-                ui.add(egui::TextEdit::singleline(&mut self.replace).desired_width(160.0));
+                ui.add(egui::TextEdit::singleline(&mut self.replace).desired_width(160.0).min_size(egui::vec2(160.0, 0.0)));
                 if ui.button("Replace All").clicked() && !self.find.is_empty() {
                     self.text = self.text.replace(&self.find, &self.replace);
                 }
@@ -180,14 +202,16 @@ impl SqlEditor {
             ui.fonts(|f| f.layout_job(job))
         };
 
-        let line_count = self.text.lines().count().max(1) + usize::from(self.text.ends_with('\n'));
+        if self.gutter.is_empty() {
+            let line_count = self.text.lines().count().max(1) + usize::from(self.text.ends_with('\n'));
+            self.gutter = (1..=line_count).map(|n| format!("{:>4}\n", n)).collect();
+        }
         let mut response = None;
         let mut output_state = None;
         egui::ScrollArea::both().id_salt(format!("{}-scroll", id_salt)).auto_shrink([false, false]).show(ui, |ui| {
             ui.horizontal_top(|ui| {
-                let nums: String = (1..=line_count).map(|n| format!("{:>4}\n", n)).collect();
                 ui.add(
-                    egui::Label::new(RichText::new(nums).font(egui::FontId::monospace(font_size)).weak())
+                    egui::Label::new(RichText::new(self.gutter.as_str()).font(egui::FontId::monospace(font_size)).weak())
                         .selectable(false)
                         .extend(),
                 );
@@ -205,6 +229,11 @@ impl SqlEditor {
             });
         });
         let Some(out) = output_state else { return ui.label("") };
+        let gutter = gutter_for(&out.galley);
+        if gutter != self.gutter {
+            self.gutter = gutter;
+            ui.ctx().request_repaint();
+        }
         let resp = response.unwrap_or_else(|| out.response.clone());
 
         if let Some(range) = out.cursor_range {

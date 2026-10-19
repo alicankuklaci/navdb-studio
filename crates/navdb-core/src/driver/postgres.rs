@@ -213,7 +213,7 @@ impl Driver for PgDriver {
             let serial = default.as_deref().map(|d| d.starts_with("nextval(")).unwrap_or(false);
             columns.push(ColumnDef {
                 name: r.text(i, 0),
-                data_type: r.text(i, 1),
+                data_type: short_type(&r.text(i, 1)),
                 nullable: r.text(i, 2) == "t",
                 default: if serial { None } else { default.clone() },
                 auto_increment: !identity.is_empty() || serial,
@@ -553,5 +553,38 @@ impl Driver for PgDriver {
 
     fn charsets(&mut self) -> Result<Vec<String>> {
         Ok(["UTF8", "LATIN1", "SQL_ASCII", "WIN1252", "EUC_JP", "GBK"].iter().map(|s| s.to_string()).collect())
+    }
+}
+
+/// Short spellings for `format_type` output, e.g. `character varying(100)` -> `varchar(100)`.
+fn short_type(t: &str) -> String {
+    const MAP: [(&str, &str); 6] = [
+        ("character varying", "varchar"),
+        ("timestamp without time zone", "timestamp"),
+        ("timestamp with time zone", "timestamptz"),
+        ("time without time zone", "time"),
+        ("time with time zone", "timetz"),
+        ("character", "char"),
+    ];
+    for (long, short) in MAP {
+        if let Some(rest) = t.strip_prefix(long) {
+            if rest.is_empty() || rest.starts_with('(') || rest.starts_with('[') {
+                return format!("{short}{rest}");
+            }
+        }
+    }
+    t.to_string()
+}
+
+#[cfg(test)]
+mod type_tests {
+    #[test]
+    fn short_types() {
+        assert_eq!(super::short_type("character varying(100)"), "varchar(100)");
+        assert_eq!(super::short_type("character(3)"), "char(3)");
+        assert_eq!(super::short_type("timestamp without time zone"), "timestamp");
+        assert_eq!(super::short_type("timestamp(3) with time zone"), "timestamp(3) with time zone");
+        assert_eq!(super::short_type("character varying[]"), "varchar[]");
+        assert_eq!(super::short_type("integer"), "integer");
     }
 }

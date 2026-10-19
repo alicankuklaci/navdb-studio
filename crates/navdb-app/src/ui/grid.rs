@@ -158,6 +158,9 @@ pub fn data_grid(ui: &mut Ui, id: &str, src: &dyn GridSource, st: &mut GridState
 
     let font = egui::FontId::monospace(opt.font_size);
     let row_h = opt.font_size + 9.0;
+    // Tab moves editing to the next cell, which is drawn later in this same frame and must
+    // not see the same key press again
+    let editing_at_start = st.editing;
 
     // keyboard navigation
     let grid_has_focus = ui.memory(|m| m.focused().is_none());
@@ -185,6 +188,21 @@ pub fn data_grid(ui: &mut Ui, id: &str, src: &dyn GridSource, st: &mut GridState
                 st.cursor = Some((nr, nc));
                 st.selected_rows.clear();
                 st.scroll_to_row = Some(nr);
+            }
+            // typing on a selected cell starts editing it with that text
+            let typed: String = ui.input(|i| {
+                if i.modifiers.command || i.modifiers.ctrl {
+                    return String::new();
+                }
+                i.events.iter().filter_map(|e| if let egui::Event::Text(t) = e { Some(t.as_str()) } else { None }).collect()
+            });
+            if !typed.is_empty() && opt.editable && nrows > 0 {
+                let (r, c) = st.cursor.unwrap_or((0, 0));
+                if src.row_status(r) != RowStatus::Deleted {
+                    st.editing = Some((r, c));
+                    st.edit_buf = typed;
+                    st.edit_requested_focus = true;
+                }
             }
             let (enter, copy, del) = ui.input(|i| {
                 (
@@ -299,7 +317,11 @@ pub fn data_grid(ui: &mut Ui, id: &str, src: &dyn GridSource, st: &mut GridState
                                 out.request_focus();
                                 st.edit_requested_focus = false;
                             }
-                            let (enter, esc, tab) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Tab)));
+                            let (enter, esc, tab) = if editing_at_start == Some((r, c)) {
+                                ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Tab)))
+                            } else {
+                                (false, false, false)
+                            };
                             if esc {
                                 st.editing = None;
                             } else if enter || tab || out.lost_focus() {

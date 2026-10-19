@@ -732,7 +732,7 @@ impl ErModelTab {
                     ui.selectable_value(&mut self.notation, Notation::Arrow, "Simple arrows");
                 });
             ui.separator();
-            let r = ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("🔍 Find table").desired_width(140.0));
+            let r = ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("🔍 Find table").desired_width(140.0).min_size(egui::vec2(140.0, 0.0)));
             if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 if let Some(i) = (0..self.tables.len()).find(|&i| self.matches(i)) {
                     self.focus_request = Some(i);

@@ -298,7 +298,7 @@ impl Tab for ViewDesignTab {
             }
             ui.separator();
             ui.label("View name:");
-            ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(180.0).hint_text("required"));
+            ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(180.0).min_size(egui::vec2(180.0, 0.0)).hint_text("required"));
             if self.view.is_some() && self.dialect != Dialect::Sqlite {
                 ui.checkbox(&mut self.recreate, "Drop & recreate").on_hover_text("Use DROP VIEW + CREATE VIEW instead of CREATE OR REPLACE (needed when columns are removed or change type)");
             }

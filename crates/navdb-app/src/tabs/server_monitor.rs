@@ -374,7 +374,7 @@ impl ServerMonitorTab {
                 if !l.filter.is_empty() && ui.small_button("✖").clicked() {
                     l.filter.clear();
                 }
-                ui.add(egui::TextEdit::singleline(&mut l.filter).hint_text("Search").desired_width(200.0));
+                ui.add(egui::TextEdit::singleline(&mut l.filter).hint_text("Search").desired_width(200.0).min_size(egui::vec2(200.0, 0.0)));
                 ui.label("🔍");
             });
         });
@@ -472,7 +472,7 @@ impl ServerMonitorTab {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(name.as_str()).monospace().strong());
                     ui.label("=");
-                    let r = ui.add(egui::TextEdit::singleline(value).desired_width(260.0).font(egui::TextStyle::Monospace));
+                    let r = ui.add(egui::TextEdit::singleline(value).desired_width(260.0).min_size(egui::vec2(260.0, 0.0)).font(egui::TextStyle::Monospace));
                     if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         apply = true;
                     }

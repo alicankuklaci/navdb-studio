@@ -344,7 +344,7 @@ impl ImportWizard {
     fn ui_source(&mut self, ui: &mut egui::Ui) {
         ui.label("Import from file:");
         ui.horizontal(|ui| {
-            if ui.add(egui::TextEdit::singleline(&mut self.path).desired_width(400.0).hint_text("/path/to/file")).changed() {
+            if ui.add(egui::TextEdit::singleline(&mut self.path).desired_width(400.0).min_size(egui::vec2(400.0, 0.0)).hint_text("/path/to/file")).changed() {
                 self.content = None;
             }
             if ui.button("Browse…").clicked() {
@@ -416,14 +416,14 @@ impl ImportWizard {
                 changed |= ui.add(egui::DragValue::new(&mut self.opts.first_data_row).range(1..=100_000_000)).changed();
                 ui.end_row();
                 ui.label("Last data row:");
-                if ui.add(egui::TextEdit::singleline(&mut self.last_row_text).hint_text("(end of file)").desired_width(90.0)).changed() {
+                if ui.add(egui::TextEdit::singleline(&mut self.last_row_text).hint_text("(end of file)").desired_width(90.0).min_size(egui::vec2(90.0, 0.0))).changed() {
                     self.opts.last_data_row = self.last_row_text.trim().parse().ok();
                     changed = true;
                 }
             }
             if self.opts.format == ImportFormat::Xml {
                 ui.label("Record tag:");
-                changed |= ui.add(egui::TextEdit::singleline(&mut self.opts.xml_record_tag).desired_width(120.0)).changed();
+                changed |= ui.add(egui::TextEdit::singleline(&mut self.opts.xml_record_tag).desired_width(120.0).min_size(egui::vec2(120.0, 0.0))).changed();
             }
             ui.label("Empty string:");
             changed |= ui.checkbox(&mut self.opts.empty_as_null, "Import as NULL").changed();
@@ -477,7 +477,7 @@ impl ImportWizard {
         }
         ui.horizontal(|ui| {
             ui.label("New table name:");
-            if ui.add(egui::TextEdit::singleline(&mut self.new_name).desired_width(240.0)).changed() {
+            if ui.add(egui::TextEdit::singleline(&mut self.new_name).desired_width(240.0).min_size(egui::vec2(240.0, 0.0))).changed() {
                 changed = true;
             }
             if ui.small_button("Re-detect types").clicked() {

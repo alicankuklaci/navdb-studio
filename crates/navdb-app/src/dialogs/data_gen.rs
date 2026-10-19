@@ -537,7 +537,7 @@ fn params_ui(ui: &mut egui::Ui, c: &mut ColGen) {
             ui.add(egui::DragValue::new(len).range(1..=4000));
         }
         Generator::Fixed(s) => {
-            ui.add(egui::TextEdit::singleline(s).hint_text("value").desired_width(180.0));
+            ui.add(egui::TextEdit::singleline(s).hint_text("value").desired_width(180.0).min_size(egui::vec2(180.0, 0.0)));
         }
         Generator::List(items) => {
             let r = ui.add(egui::TextEdit::multiline(&mut c.list_text).desired_rows(2).desired_width(180.0).hint_text("one value per line"));

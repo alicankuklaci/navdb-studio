@@ -613,7 +613,7 @@ impl TableDesignTab {
                         select = Some(i);
                     }
                     ui.horizontal(|ui| {
-                        let r = ui.add(egui::TextEdit::singleline(&mut f.col.name).desired_width(150.0).hint_text("field name"));
+                        let r = ui.add(egui::TextEdit::singleline(&mut f.col.name).desired_width(150.0).min_size(egui::vec2(150.0, 0.0)).hint_text("field name"));
                         if r.has_focus() || r.clicked() {
                             select = Some(i);
                         }
@@ -626,7 +626,7 @@ impl TableDesignTab {
                         }
                     });
                     ui.horizontal(|ui| {
-                        let r = ui.add(egui::TextEdit::singleline(&mut f.col.data_type).desired_width(130.0).font(egui::TextStyle::Monospace).hint_text("type(len)"));
+                        let r = ui.add(egui::TextEdit::singleline(&mut f.col.data_type).desired_width(130.0).min_size(egui::vec2(130.0, 0.0)).font(egui::TextStyle::Monospace).hint_text("type(len)"));
                         if r.has_focus() {
                             select = Some(i);
                         }
@@ -666,7 +666,7 @@ impl TableDesignTab {
                         }
                         select = Some(i);
                     }
-                    let r = ui.add(egui::TextEdit::singleline(&mut f.default).desired_width(120.0).font(egui::TextStyle::Monospace).hint_text("none"));
+                    let r = ui.add(egui::TextEdit::singleline(&mut f.default).desired_width(120.0).min_size(egui::vec2(120.0, 0.0)).font(egui::TextStyle::Monospace).hint_text("none"));
                     if r.has_focus() {
                         select = Some(i);
                     }
@@ -674,7 +674,7 @@ impl TableDesignTab {
                         select = Some(i);
                     }
                     if comments {
-                        let r = ui.add(egui::TextEdit::singleline(&mut f.col.comment).desired_width(200.0));
+                        let r = ui.add(egui::TextEdit::singleline(&mut f.col.comment).desired_width(200.0).min_size(egui::vec2(200.0, 0.0)));
                         if r.has_focus() {
                             select = Some(i);
                         }
@@ -706,10 +706,10 @@ impl TableDesignTab {
             }
             if d == Dialect::MySql {
                 ui.label(RichText::new("Collation").weak());
-                ui.add(egui::TextEdit::singleline(&mut f.col.collation).desired_width(220.0).hint_text("(table default)"));
+                ui.add(egui::TextEdit::singleline(&mut f.col.collation).desired_width(220.0).min_size(egui::vec2(220.0, 0.0)).hint_text("(table default)"));
                 ui.end_row();
                 ui.label(RichText::new("Extra").weak());
-                ui.add(egui::TextEdit::singleline(&mut f.col.extra).desired_width(320.0).hint_text("e.g. on update CURRENT_TIMESTAMP"));
+                ui.add(egui::TextEdit::singleline(&mut f.col.extra).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)).hint_text("e.g. on update CURRENT_TIMESTAMP"));
                 ui.end_row();
             }
             ui.label(RichText::new("Default").weak());
@@ -742,7 +742,7 @@ impl TableDesignTab {
                     if ui.selectable_label(self.sel_index == Some(i), RichText::new(format!("{:>2}", i + 1)).monospace()).clicked() {
                         select = Some(i);
                     }
-                    if ui.add(egui::TextEdit::singleline(&mut idx.name).desired_width(170.0).hint_text("auto")).has_focus() {
+                    if ui.add(egui::TextEdit::singleline(&mut idx.name).desired_width(170.0).min_size(egui::vec2(170.0, 0.0)).hint_text("auto")).has_focus() {
                         select = Some(i);
                     }
                     ui.horizontal(|ui| {
@@ -756,7 +756,7 @@ impl TableDesignTab {
                     } else {
                         combo(ui, ("idx-method", &self.id, i), &mut idx.method, methods, 100.0);
                     }
-                    ui.add(egui::TextEdit::singleline(&mut idx.comment).desired_width(180.0));
+                    ui.add(egui::TextEdit::singleline(&mut idx.comment).desired_width(180.0).min_size(egui::vec2(180.0, 0.0)));
                     ui.end_row();
                 }
             });
@@ -832,7 +832,7 @@ impl TableDesignTab {
                     if ui.selectable_label(self.sel_fk == Some(i), RichText::new(format!("{:>2}", i + 1)).monospace()).clicked() {
                         select = Some(i);
                     }
-                    if ui.add(egui::TextEdit::singleline(&mut fk.name).desired_width(150.0).hint_text("auto")).has_focus() {
+                    if ui.add(egui::TextEdit::singleline(&mut fk.name).desired_width(150.0).min_size(egui::vec2(150.0, 0.0)).hint_text("auto")).has_focus() {
                         select = Some(i);
                     }
                     ui.horizontal(|ui| {
@@ -884,7 +884,7 @@ impl TableDesignTab {
                         }
                         None => {
                             let mut s = fk.ref_columns.join(", ");
-                            if ui.add(egui::TextEdit::singleline(&mut s).desired_width(160.0).hint_text("col1, col2")).changed() {
+                            if ui.add(egui::TextEdit::singleline(&mut s).desired_width(160.0).min_size(egui::vec2(160.0, 0.0)).hint_text("col1, col2")).changed() {
                                 fk.ref_columns = s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect();
                             }
                         }
@@ -918,10 +918,10 @@ impl TableDesignTab {
                     if ui.selectable_label(self.sel_check == Some(i), RichText::new(format!("{:>2}", i + 1)).monospace()).clicked() {
                         select = Some(i);
                     }
-                    if ui.add(egui::TextEdit::singleline(&mut c.name).desired_width(180.0).hint_text("optional")).has_focus() {
+                    if ui.add(egui::TextEdit::singleline(&mut c.name).desired_width(180.0).min_size(egui::vec2(180.0, 0.0)).hint_text("optional")).has_focus() {
                         select = Some(i);
                     }
-                    if ui.add(egui::TextEdit::singleline(&mut c.expression).desired_width(420.0).font(egui::TextStyle::Monospace).hint_text("price > 0")).has_focus() {
+                    if ui.add(egui::TextEdit::singleline(&mut c.expression).desired_width(420.0).min_size(egui::vec2(420.0, 0.0)).font(egui::TextStyle::Monospace).hint_text("price > 0")).has_focus() {
                         select = Some(i);
                     }
                     ui.end_row();
@@ -968,7 +968,7 @@ impl TableDesignTab {
         let t = &mut self.triggers[i];
         egui::Grid::new(("trg-props", &self.id)).num_columns(2).spacing([12.0, 4.0]).show(ui, |ui| {
             ui.label("Name");
-            ui.add(egui::TextEdit::singleline(&mut t.name).desired_width(240.0));
+            ui.add(egui::TextEdit::singleline(&mut t.name).desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
             ui.end_row();
             ui.label("Fires");
             ui.horizontal(|ui| {
@@ -1057,7 +1057,7 @@ impl TableDesignTab {
                     });
                     ui.end_row();
                     ui.label("Auto increment");
-                    ui.add(egui::TextEdit::singleline(&mut self.auto_inc).desired_width(120.0).hint_text("next value"));
+                    ui.add(egui::TextEdit::singleline(&mut self.auto_inc).desired_width(120.0).min_size(egui::vec2(120.0, 0.0)).hint_text("next value"));
                     ui.end_row();
                 });
                 if let Some(e) = self.charsets.error() {
@@ -1159,7 +1159,7 @@ impl Tab for TableDesignTab {
             }
             ui.separator();
             ui.label("Table name:");
-            ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(200.0).hint_text("required"));
+            ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(200.0).min_size(egui::vec2(200.0, 0.0)).hint_text("required"));
             if let Some(t) = &self.table {
                 if t != self.name.trim() && !self.name.trim().is_empty() {
                     ui.label(RichText::new(format!("↻ renamed from {}", t)).color(ui.visuals().warn_fg_color).small());

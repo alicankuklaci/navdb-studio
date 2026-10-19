@@ -383,7 +383,7 @@ impl UsersTab {
                 if !self.filter.is_empty() && ui.small_button("✖").clicked() {
                     self.filter.clear();
                 }
-                ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("Search users").desired_width(180.0));
+                ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("Search users").desired_width(180.0).min_size(egui::vec2(180.0, 0.0)));
                 ui.label("🔍");
             });
         });
@@ -561,19 +561,19 @@ impl UsersTab {
                 Page::General => {
                     egui::Grid::new(format!("ud-gen-{}", d.id)).num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
                         ui.label("User name:");
-                        ui.add(egui::TextEdit::singleline(&mut d.name).desired_width(240.0));
+                        ui.add(egui::TextEdit::singleline(&mut d.name).desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
                         ui.end_row();
                         if kind != DbKind::PostgreSql {
                             ui.label("Host:");
-                            ui.add(egui::TextEdit::singleline(&mut d.host).hint_text("% = any host").desired_width(240.0));
+                            ui.add(egui::TextEdit::singleline(&mut d.host).hint_text("% = any host").desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
                             ui.end_row();
                         }
                         let hint = if d.old.is_some() { "leave empty to keep" } else { "" };
                         ui.label("Password:");
-                        ui.add(egui::TextEdit::singleline(&mut d.password).password(true).hint_text(hint).desired_width(240.0));
+                        ui.add(egui::TextEdit::singleline(&mut d.password).password(true).hint_text(hint).desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
                         ui.end_row();
                         ui.label("Confirm password:");
-                        let r = ui.add(egui::TextEdit::singleline(&mut d.confirm).password(true).desired_width(240.0));
+                        let r = ui.add(egui::TextEdit::singleline(&mut d.confirm).password(true).desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
                         if d.password != d.confirm && !d.confirm.is_empty() {
                             r.on_hover_text("Passwords do not match");
                         }

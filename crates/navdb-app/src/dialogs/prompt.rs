@@ -26,7 +26,7 @@ impl Dialog for PromptDialog {
         let mut done = false;
         super::window(self.title.clone(), &self.id).open(&mut open).resizable(false).default_width(360.0).show(ctx, |ui| {
             ui.label(&self.label);
-            let r = ui.add(egui::TextEdit::singleline(&mut self.value).desired_width(320.0));
+            let r = ui.add(egui::TextEdit::singleline(&mut self.value).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)));
             if !self.focused {
                 r.request_focus();
                 self.focused = true;

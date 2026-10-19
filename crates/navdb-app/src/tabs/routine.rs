@@ -924,7 +924,7 @@ impl RoutineTab {
                         ui.label(RichText::new(&p.ty).monospace());
                         let enabled = !p.null && (!p.is_out() || p.is_inout());
                         let hint = if p.is_out() { "(output)" } else { "value" };
-                        let r = ui.add_enabled(enabled, egui::TextEdit::singleline(&mut p.value).desired_width(220.0).hint_text(hint));
+                        let r = ui.add_enabled(enabled, egui::TextEdit::singleline(&mut p.value).desired_width(220.0).min_size(egui::vec2(220.0, 0.0)).hint_text(hint));
                         if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                             run = true;
                         }

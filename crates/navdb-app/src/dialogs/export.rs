@@ -283,7 +283,7 @@ impl ExportWizard {
         if self.is_result() {
             ui.label("Save the result to:");
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.file).desired_width(400.0));
+                ui.add(egui::TextEdit::singleline(&mut self.file).desired_width(400.0).min_size(egui::vec2(400.0, 0.0)));
                 if ui.button("Save As…").clicked() {
                     let name = Path::new(&self.file).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
                     if let Some(p) = ui::save_file_dialog(&name, self.format.extension()) {
@@ -299,7 +299,7 @@ impl ExportWizard {
         }
         ui.horizontal(|ui| {
             ui.label("Output folder:");
-            ui.add(egui::TextEdit::singleline(&mut self.folder).desired_width(340.0));
+            ui.add(egui::TextEdit::singleline(&mut self.folder).desired_width(340.0).min_size(egui::vec2(340.0, 0.0)));
             if ui.button("Browse…").clicked() {
                 if let Some(p) = ui::pick_folder_dialog() {
                     self.folder = p.display().to_string();
@@ -311,7 +311,7 @@ impl ExportWizard {
             return;
         }
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.item_filter).hint_text("Filter").desired_width(150.0));
+            ui.add(egui::TextEdit::singleline(&mut self.item_filter).hint_text("Filter").desired_width(150.0).min_size(egui::vec2(150.0, 0.0)));
             if ui.small_button("Select All").clicked() {
                 self.items.iter_mut().for_each(|i| i.selected = true);
             }
@@ -333,7 +333,7 @@ impl ExportWizard {
                             continue;
                         }
                         ui.checkbox(&mut it.selected, format!("{} {}", crate::ui::style::object_icon(it.kind), it.name));
-                        ui.add_enabled(it.selected, egui::TextEdit::singleline(&mut it.file).desired_width(260.0));
+                        ui.add_enabled(it.selected, egui::TextEdit::singleline(&mut it.file).desired_width(260.0).min_size(egui::vec2(260.0, 0.0)));
                         ui.end_row();
                     }
                 });
@@ -414,7 +414,7 @@ impl ExportWizard {
                         if self.delim_other.is_empty() {
                             self.delim_other = self.opts.delimiter.to_string();
                         }
-                        if ui.add(egui::TextEdit::singleline(&mut self.delim_other).desired_width(30.0).char_limit(1)).changed() {
+                        if ui.add(egui::TextEdit::singleline(&mut self.delim_other).desired_width(30.0).min_size(egui::vec2(30.0, 0.0)).char_limit(1)).changed() {
                             if let Some(c) = self.delim_other.chars().next().filter(|c| c.is_ascii()) {
                                 self.opts.delimiter = c;
                             }
@@ -433,7 +433,7 @@ impl ExportWizard {
             }
             if has_null {
                 ui.label("NULL as:");
-                ui.add(egui::TextEdit::singleline(&mut self.opts.null_text).hint_text("(empty)").desired_width(120.0));
+                ui.add(egui::TextEdit::singleline(&mut self.opts.null_text).hint_text("(empty)").desired_width(120.0).min_size(egui::vec2(120.0, 0.0)));
                 ui.end_row();
             }
             ui.label("Line ending:");
@@ -450,7 +450,7 @@ impl ExportWizard {
                 ui.end_row();
                 if self.is_result() {
                     ui.label("Target table name:");
-                    ui.add(egui::TextEdit::singleline(&mut self.table_name).desired_width(200.0));
+                    ui.add(egui::TextEdit::singleline(&mut self.table_name).desired_width(200.0).min_size(egui::vec2(200.0, 0.0)));
                     ui.end_row();
                 }
             }

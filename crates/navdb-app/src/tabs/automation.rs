@@ -402,7 +402,7 @@ impl AutomationTab {
     }
 
     fn db_field(ui: &mut egui::Ui, id: String, st: &mut AppState, conn: &str, db: &mut String, hint: &str) {
-        ui.add(egui::TextEdit::singleline(db).hint_text(hint).desired_width(150.0));
+        ui.add(egui::TextEdit::singleline(db).hint_text(hint).desired_width(150.0).min_size(egui::vec2(150.0, 0.0)));
         ui.menu_button("⏷", |ui| {
             if conn.is_empty() {
                 ui.label("Select a connection first");
@@ -429,7 +429,7 @@ impl AutomationTab {
     }
 
     fn table_field(ui: &mut egui::Ui, id: String, st: &mut AppState, conn: &str, db: &str, table: &mut String) {
-        ui.add(egui::TextEdit::singleline(table).hint_text("table").desired_width(150.0));
+        ui.add(egui::TextEdit::singleline(table).hint_text("table").desired_width(150.0).min_size(egui::vec2(150.0, 0.0)));
         ui.menu_button("⏷", |ui| {
             let Some(cfg) = st.config(conn).cloned() else {
                 ui.label("Select a connection first");
@@ -526,7 +526,7 @@ impl AutomationTab {
                         });
                         ui.horizontal(|ui| {
                             ui.label("Output folder");
-                            ui.add(egui::TextEdit::singleline(output_dir).hint_text(config::backups_dir().display().to_string()).desired_width(320.0));
+                            ui.add(egui::TextEdit::singleline(output_dir).hint_text(config::backups_dir().display().to_string()).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)));
                             if ui.button("…").clicked() {
                                 if let Some(p) = crate::ui::pick_folder_dialog() {
                                     *output_dir = p.display().to_string();
@@ -559,7 +559,7 @@ impl AutomationTab {
                         });
                         ui.horizontal(|ui| {
                             ui.label("Output file");
-                            ui.add(egui::TextEdit::singleline(path).hint_text("empty = backups folder; {date} and {table} are replaced").desired_width(360.0));
+                            ui.add(egui::TextEdit::singleline(path).hint_text("empty = backups folder; {date} and {table} are replaced").desired_width(360.0).min_size(egui::vec2(360.0, 0.0)));
                             if ui.button("…").clicked() {
                                 let ext = parse_format(format).map(|f| f.extension()).unwrap_or("csv");
                                 let name = format!("{}.{}", if table.is_empty() { "export" } else { table.as_str() }, ext);
@@ -622,7 +622,7 @@ impl AutomationTab {
         let running = self.runs.contains_key(&id);
         ui.horizontal(|ui| {
             ui.label("Name");
-            ui.add(egui::TextEdit::singleline(&mut job.name).desired_width(240.0));
+            ui.add(egui::TextEdit::singleline(&mut job.name).desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
             ui.separator();
             if ui.add_enabled(!running && !job.steps.is_empty(), egui::Button::new(RichText::new(format!("{} Run Now", icon::RUN)).strong())).clicked() {
                 // the run picks up the job from the workspace: store edits first

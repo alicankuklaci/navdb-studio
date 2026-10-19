@@ -877,7 +877,7 @@ impl DataTransferDialog {
             if self.to_file {
                 ui.horizontal(|ui| {
                     ui.label("File:");
-                    ui.add(egui::TextEdit::singleline(&mut self.file_path).desired_width(360.0).hint_text("/path/to/transfer.sql"));
+                    ui.add(egui::TextEdit::singleline(&mut self.file_path).desired_width(360.0).min_size(egui::vec2(360.0, 0.0)).hint_text("/path/to/transfer.sql"));
                     if ui.button("Browse…").clicked() {
                         let name = self.src_scope.as_ref().map(|s| format!("{}.sql", s.db)).unwrap_or_else(|| "transfer.sql".into());
                         if let Some(p) = ui::save_file_dialog(&name, "sql") {
@@ -933,7 +933,7 @@ impl DataTransferDialog {
             self.selection_for = key;
         }
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("🔍 Filter tables").desired_width(200.0));
+            ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("🔍 Filter tables").desired_width(200.0).min_size(egui::vec2(200.0, 0.0)));
             if ui.button("Select All").clicked() {
                 self.selected = tables.iter().map(|t| t.name.clone()).collect();
             }

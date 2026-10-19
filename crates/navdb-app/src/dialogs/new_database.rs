@@ -327,7 +327,7 @@ impl DatabaseDialog {
         egui::Grid::new(format!("{}-g", self.id)).num_columns(2).spacing([14.0, 10.0]).show(ui, |ui| match self.kind {
             DbKind::MySql | DbKind::MariaDb => {
                 ui.label("Database name:");
-                ui.add_enabled(!editing, egui::TextEdit::singleline(&mut self.name).desired_width(280.0));
+                ui.add_enabled(!editing, egui::TextEdit::singleline(&mut self.name).desired_width(280.0).min_size(egui::vec2(280.0, 0.0)));
                 ui.end_row();
                 ui.label("Character set:");
                 if Self::combo(ui, format!("{}-cs", self.id), &mut self.charset, &self.charsets, "(server default)", 260.0) {
@@ -340,7 +340,7 @@ impl DatabaseDialog {
             }
             DbKind::PostgreSql => {
                 ui.label("Database name:");
-                ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(280.0));
+                ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(280.0).min_size(egui::vec2(280.0, 0.0)));
                 ui.end_row();
                 ui.label("Owner:");
                 Self::combo(ui, format!("{}-own", self.id), &mut self.owner, &self.owners, "(current user)", 260.0);
@@ -361,11 +361,11 @@ impl DatabaseDialog {
             }
             DbKind::Sqlite => {
                 ui.label("Alias:");
-                ui.add_enabled(!editing, egui::TextEdit::singleline(&mut self.name).hint_text("e.g. archive").desired_width(280.0));
+                ui.add_enabled(!editing, egui::TextEdit::singleline(&mut self.name).hint_text("e.g. archive").desired_width(280.0).min_size(egui::vec2(280.0, 0.0)));
                 ui.end_row();
                 ui.label("Database file:");
                 ui.horizontal(|ui| {
-                    ui.add_enabled(!editing, egui::TextEdit::singleline(&mut self.file).desired_width(240.0));
+                    ui.add_enabled(!editing, egui::TextEdit::singleline(&mut self.file).desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
                     if !editing && ui.button("…").on_hover_text("Choose file").clicked() {
                         let picked = rfd::FileDialog::new()
                             .add_filter("SQLite database", &["db", "sqlite", "sqlite3", "db3"])

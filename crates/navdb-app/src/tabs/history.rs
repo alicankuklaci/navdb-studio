@@ -74,7 +74,7 @@ impl Tab for HistoryTab {
         // toolbar
         ui.horizontal(|ui| {
             ui.label("🔍");
-            ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("Search SQL, connection, database, message").desired_width(280.0));
+            ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("Search SQL, connection, database, message").desired_width(280.0).min_size(egui::vec2(280.0, 0.0)));
             if !self.filter.is_empty() && ui.small_button("✖").on_hover_text("Clear search").clicked() {
                 self.filter.clear();
             }

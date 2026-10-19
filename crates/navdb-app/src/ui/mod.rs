@@ -68,10 +68,15 @@ pub fn format_bytes(b: i64) -> String {
 
 /// Two-column key/value grid (information pane, summaries).
 pub fn kv_grid(ui: &mut Ui, id: &str, rows: &[(String, String)]) {
+    // keep long values (file paths) from widening a side panel
+    let value_w = (ui.available_width() - 110.0).max(80.0);
     egui::Grid::new(id).num_columns(2).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
         for (k, v) in rows {
             ui.label(RichText::new(k).weak());
-            ui.add(egui::Label::new(v).wrap());
+            ui.scope(|ui| {
+                ui.set_max_width(value_w);
+                ui.add(egui::Label::new(v).wrap());
+            });
             ui.end_row();
         }
     });
