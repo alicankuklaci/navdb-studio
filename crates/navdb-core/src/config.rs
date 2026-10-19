@@ -411,6 +411,8 @@ impl ConnectionConfig {
                         .unwrap_or_else(|| "memory".into())
                 }
             }
+            // the driver attaches the Iceberg catalog under this name
+            DbKind::Iceberg => "iceberg".into(),
             DbKind::Redis => {
                 if self.database.is_empty() { "db0".into() } else { self.database.clone() }
             }
