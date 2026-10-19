@@ -120,6 +120,26 @@ pub fn compare_structures(d: Dialect, source: &[TableDef], target: &[TableDef], 
         DiffStatus::OnlyInTarget => 2,
         DiffStatus::Identical => 3,
     });
+    let n_create = out.iter().take_while(|x| x.status == DiffStatus::OnlyInSource).count();
+    let created: Vec<StructDiff> = out.drain(..n_create).collect();
+    let mut ordered = fk_order(created);
+    ordered.append(&mut out);
+    ordered
+}
+
+/// Order new tables so referenced tables are created before the tables that reference them.
+/// Tables in a reference cycle keep their original relative order.
+fn fk_order(mut pending: Vec<StructDiff>) -> Vec<StructDiff> {
+    let mut out: Vec<StructDiff> = Vec::with_capacity(pending.len());
+    while !pending.is_empty() {
+        let names: Vec<String> = pending.iter().map(|x| x.name.clone()).collect();
+        let ready = pending.iter().position(|x| {
+            x.source.as_ref().map_or(true, |t| {
+                t.foreign_keys.iter().all(|fk| fk.ref_table == x.name || !names.contains(&fk.ref_table))
+            })
+        });
+        out.push(pending.remove(ready.unwrap_or(0)));
+    }
     out
 }
 
@@ -148,6 +168,19 @@ fn key_of(row: &[Value], idx: &[usize]) -> String {
     idx.iter().map(|&i| format!("{:?}", row[i].display())).collect::<Vec<_>>().join("\u{1f}")
 }
 
+/// Value equality across drivers: `49.90` (numeric text) equals `49.9` (REAL).
+fn same_value(a: &Value, b: &Value) -> bool {
+    let (da, db) = (a.display(), b.display());
+    if da == db {
+        return true;
+    }
+    let num = |v: &Value, d: &str| v.as_f64().filter(|_| v.is_numeric()).or_else(|| d.trim().parse::<f64>().ok());
+    match (num(a, &da), num(b, &db)) {
+        (Some(x), Some(y)) => (x - y).abs() <= f64::EPSILON * x.abs().max(y.abs()).max(1.0),
+        _ => false,
+    }
+}
+
 /// Compare rows of the same table in two databases using `key` columns.
 pub fn compare_data(table: &str, key: &[String], source: &QueryResult, target: &QueryResult) -> DataDiff {
     let cols: Vec<String> = source.columns.iter().map(|c| c.name.clone()).collect();
@@ -166,7 +199,7 @@ pub fn compare_data(table: &str, key: &[String], source: &QueryResult, target: &
         match tmap.remove(&k) {
             None => diff.inserts.push(r.clone()),
             Some(t) => {
-                if t.iter().zip(r).all(|(a, b)| a.display() == b.display()) {
+                if t.iter().zip(r).all(|(a, b)| same_value(a, b)) {
                     diff.identical += 1;
                 } else {
                     diff.updates.push(r.clone());
@@ -255,5 +288,28 @@ mod tests {
         assert_eq!((d.inserts.len(), d.updates.len(), d.deletes.len(), d.identical), (1, 1, 1, 1));
         let sql = data_script(Dialect::Sqlite, &ObjPath::new("main", None, "t"), &d, true, true, true);
         assert_eq!(sql.len(), 3);
+    }
+
+    #[test]
+    fn creates_referenced_tables_first() {
+        let mut child = t("orders", &[("id", "int"), ("product_id", "int")]);
+        child.foreign_keys.push(ForeignKeyDef {
+            name: "fk".into(),
+            columns: vec!["product_id".into()],
+            ref_table: "products".into(),
+            ref_columns: vec!["id".into()],
+            ..Default::default()
+        });
+        let parent = t("products", &[("id", "int")]);
+        let diffs = compare_structures(Dialect::Postgres, &[child, parent], &[], &Scope::new("db", Some("public".into())), false);
+        let names: Vec<&str> = diffs.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, ["products", "orders"]);
+    }
+
+    #[test]
+    fn numeric_text_equals_float() {
+        assert!(same_value(&Value::Text("49.90".into()), &Value::Float(49.9)));
+        assert!(!same_value(&Value::Text("49.91".into()), &Value::Float(49.9)));
+        assert!(!same_value(&Value::Text("abc".into()), &Value::Null));
     }
 }

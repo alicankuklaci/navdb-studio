@@ -232,6 +232,20 @@ pub fn auto_map(source: &QueryResult, target_cols: &[String]) -> Vec<FieldMappin
 }
 
 /// Destination table definition for "create new table" imports.
+/// `YYYY-MM-DD`
+fn looks_like_date(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 10 && b[4] == b'-' && b[7] == b'-' && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
+}
+
+/// `YYYY-MM-DD HH:MM:SS` (optionally `T` separator and fractional seconds)
+fn looks_like_datetime(s: &str) -> bool {
+    s.is_ascii() && s.len() >= 19 && looks_like_date(&s[..10]) && matches!(s.as_bytes()[10], b' ' | b'T') && {
+        let t = s[11..19].as_bytes();
+        t[2] == b':' && t[5] == b':' && t.iter().enumerate().all(|(i, c)| i == 2 || i == 5 || c.is_ascii_digit())
+    }
+}
+
 pub fn infer_table(source: &QueryResult, path: ObjPath, d: Dialect) -> TableDef {
     let columns = source
         .columns
@@ -241,6 +255,8 @@ pub fn infer_table(source: &QueryResult, path: ObjPath, d: Dialect) -> TableDef 
             let mut all_int = true;
             let mut all_num = true;
             let mut max_len = 1usize;
+            let mut all_date = true;
+            let mut all_datetime = true;
             for r in &source.rows {
                 let s = r[i].edit_text();
                 if r[i].is_null() || s.is_empty() {
@@ -253,14 +269,26 @@ pub fn infer_table(source: &QueryResult, path: ObjPath, d: Dialect) -> TableDef 
                 if s.parse::<f64>().is_err() {
                     all_num = false;
                 }
+                if !looks_like_date(&s) {
+                    all_date = false;
+                }
+                if !looks_like_datetime(&s) {
+                    all_datetime = false;
+                }
             }
+            let any = !source.rows.is_empty() && !all_num;
+            let (all_date, all_datetime) = (any && all_date, any && all_datetime);
             let ty = match d {
-                Dialect::Sqlite => if all_int { "INTEGER" } else if all_num { "REAL" } else { "TEXT" }.to_string(),
+                Dialect::Sqlite => if all_int { "INTEGER" } else if all_num { "REAL" } else if all_date { "DATE" } else if all_datetime { "DATETIME" } else { "TEXT" }.to_string(),
                 Dialect::MySql => {
                     if all_int && !source.rows.is_empty() {
                         "bigint".into()
                     } else if all_num && !source.rows.is_empty() {
                         "double".into()
+                    } else if all_date {
+                        "date".into()
+                    } else if all_datetime {
+                        "datetime".into()
                     } else if max_len > 255 {
                         "text".into()
                     } else {
@@ -272,6 +300,10 @@ pub fn infer_table(source: &QueryResult, path: ObjPath, d: Dialect) -> TableDef 
                         "int8".into()
                     } else if all_num && !source.rows.is_empty() {
                         "float8".into()
+                    } else if all_date {
+                        "date".into()
+                    } else if all_datetime {
+                        "timestamp".into()
                     } else {
                         "text".into()
                     }
@@ -385,5 +417,13 @@ mod tests {
         let s = build_statements(Dialect::Sqlite, &t.path, &r, &m, ImportMode::Append, 100);
         assert_eq!(s.len(), 1);
         assert!(s[0].contains("('1', 'ali')"));
+    }
+
+    #[test]
+    fn infer_dates() {
+        let r = parse("d,ts,t\n2024-01-10,2024-01-10 10:00:00,İstanbul şehri ve çevresi\n", &ImportOptions::default()).unwrap();
+        let t = infer_table(&r, ObjPath::new("db", None, "p"), Dialect::MySql);
+        let types: Vec<&str> = t.columns.iter().map(|c| c.data_type.as_str()).collect();
+        assert_eq!(types, ["date", "datetime", "varchar(255)"]);
     }
 }

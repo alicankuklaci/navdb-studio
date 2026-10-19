@@ -294,6 +294,7 @@ impl BackupDialog {
         let mut double = None;
         egui::Frame::group(ui.style()).show(ui, |ui| {
             ui.set_min_height(200.0);
+            ui.set_max_height(260.0);
             if entries.is_empty() {
                 ui.centered_and_justified(|ui| {
                     ui.label(RichText::new("No backups yet. Click \"New Backup\" to create one.").weak());

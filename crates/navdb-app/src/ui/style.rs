@@ -44,11 +44,6 @@ pub fn kind_logo(k: DbKind, size: f32) -> egui::Image<'static> {
     egui::Image::new(src).fit_to_exact_size(egui::vec2(size, size))
 }
 
-/// Logo followed by text, e.g. in the navigator and menus.
-pub fn logo_label(ui: &mut egui::Ui, k: DbKind, size: f32) {
-    ui.add(kind_logo(k, size));
-}
-
 pub fn object_icon(k: ObjectKind) -> &'static str {
     match k {
         ObjectKind::Table => ph::TABLE,
@@ -67,6 +62,10 @@ pub fn object_icon(k: ObjectKind) -> &'static str {
 pub fn install_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+    // Hack covers arrows/symbols (→ ↵ ⇶) that Ubuntu lacks
+    if let Some(list) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        list.push("Hack".to_owned());
+    }
     ctx.set_fonts(fonts);
 }
 

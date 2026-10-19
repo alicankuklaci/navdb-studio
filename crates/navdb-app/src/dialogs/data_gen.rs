@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use egui::RichText;
 use navdb_core::datagen::{self, Generator};
-use navdb_core::driver;
+use navdb_core::driver::{self, Driver};
 use navdb_core::{ddl, dml, ColumnDef, ColumnMeta, ConnectionConfig, Dialect, ObjPath, Pending, QueryResult, Scope, TableDef, Value};
 
 use super::data_transfer::common::*;
@@ -570,6 +570,23 @@ fn gen_rows(p: &GenPlan, n: usize, start: usize) -> (Vec<String>, Vec<Vec<Value>
     (names, rows)
 }
 
+/// Shift sequence generators past the current maximum so new rows don't hit existing keys.
+fn continue_sequences(drv: &mut dyn Driver, scope: &Scope, d: Dialect, pl: &mut GenPlan, p: &Shared) {
+    for (name, gen) in pl.cols.iter_mut() {
+        let Generator::Sequence { start, step } = gen else { continue };
+        if *step <= 0 {
+            continue;
+        }
+        let sql = format!("SELECT MAX({}) FROM {}", d.quote_ident(name), d.qualify(&pl.path));
+        let max = drv.query(Some(scope), &sql).ok().and_then(|r| r.rows.first().and_then(|row| row.first().cloned()));
+        let max = max.and_then(|v| v.as_f64().or_else(|| v.display().parse().ok())).map(|f| f as i64);
+        if let Some(m) = max.filter(|m| *m >= *start) {
+            *start = m + 1;
+            plog(p, LogLevel::Info, format!("{}.{}: sequence continues from {}", pl.path.name, name, *start));
+        }
+    }
+}
+
 fn run_generation(cfg: ConnectionConfig, scope: Scope, plans: Vec<GenPlan>, opts: (bool, usize, bool), p: Shared) -> navdb_core::Result<()> {
     let (delete_existing, batch, continue_on_error) = opts;
     let d = cfg.dialect();
@@ -589,6 +606,12 @@ fn run_generation(cfg: ConnectionConfig, scope: Scope, plans: Vec<GenPlan>, opts
                     }
                 }
             }
+        }
+    }
+    let mut plans = plans;
+    if !delete_existing {
+        for pl in plans.iter_mut() {
+            continue_sequences(drv.as_mut(), &scope, d, pl, &p);
         }
     }
     let mut done = 0usize;
@@ -675,7 +698,8 @@ impl Dialog for DataGenDialog {
             });
             ui.separator();
             let h = 460.0;
-            ui.horizontal_top(|ui| {
+            // bounded height: a vertical separator otherwise stretches to the whole screen
+            ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), h), egui::Layout::left_to_right(egui::Align::Min), |ui| {
                 ui.vertical(|ui| {
                     ui.set_width(220.0);
                     ui.set_height(h);

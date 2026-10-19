@@ -136,9 +136,9 @@ impl Driver for PgDriver {
         let schema = lit(scope.schema.as_deref().unwrap_or("public"));
         let rel = |k: &str| {
             format!(
-                "SELECT c.relname, c.reltuples::bigint, pg_total_relation_size(c.oid), COALESCE(obj_description(c.oid, 'pg_class'), ''), \
+                "SELECT c.relname, CASE WHEN c.reltuples < 0 THEN s.n_live_tup ELSE c.reltuples::bigint END, pg_total_relation_size(c.oid), COALESCE(obj_description(c.oid, 'pg_class'), ''), \
                  pg_get_userbyid(c.relowner), COALESCE(t.spcname, 'pg_default') \
-                 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace \
+                 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace LEFT JOIN pg_stat_all_tables s ON s.relid = c.oid \
                  WHERE n.nspname = {} AND c.relkind IN ({}) ORDER BY c.relname",
                 schema, k
             )

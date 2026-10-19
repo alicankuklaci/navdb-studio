@@ -508,9 +508,9 @@ impl ImportWizard {
                 ui.label(RichText::new("Allow NULL").strong());
                 ui.end_row();
                 for (i, c) in def.columns.iter_mut().enumerate() {
-                    ui.add(egui::TextEdit::singleline(&mut c.name).desired_width(180.0));
+                    ui.add_sized([180.0, 20.0], egui::TextEdit::singleline(&mut c.name));
                     ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut c.data_type).desired_width(120.0));
+                        ui.add_sized([120.0, 20.0], egui::TextEdit::singleline(&mut c.data_type));
                         egui::ComboBox::from_id_salt(("imp-type", &id, i)).selected_text("").width(18.0).height(300.0).show_ui(ui, |ui| {
                             for t in types {
                                 if ui.selectable_label(c.data_type.eq_ignore_ascii_case(t), *t).clicked() {
@@ -668,7 +668,7 @@ impl Dialog for ImportWizard {
         if running {
             ctx.request_repaint_after(Duration::from_millis(100));
         }
-        super::window(format!("Import Wizard – {}", self.title), &self.id).open(&mut open).default_width(680.0).show(ctx, |ui| {
+        super::window(format!("Import Wizard – {}", self.title), &self.id).open(&mut open).default_width(780.0).show(ctx, |ui| {
             if !self.kind.is_sql() {
                 ui.label("The Import Wizard is only available for SQL databases.");
                 if ui.button("Close").clicked() {
