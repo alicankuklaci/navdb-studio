@@ -21,3 +21,6 @@ egui_plot = "0.31"
 rfd = "0.15"
 uuid = { version = "1", features = ["v4"] }
 rand = "0.8"
+
+[build-dependencies]
+winresource = "0.1"
