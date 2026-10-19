@@ -47,6 +47,10 @@ impl Dialect {
                     format!("{}.{}", self.quote_ident(&p.db), self.quote_ident(&p.name))
                 }
             }
+            // `[db]..[t]`: two-part names would be read as schema.table
+            Dialect::SqlServer if p.schema.is_none() && !p.db.is_empty() => {
+                format!("{}..{}", self.quote_ident(&p.db), self.quote_ident(&p.name))
+            }
             Dialect::SqlServer | Dialect::Generic => [Some(p.db.as_str()), p.schema.as_deref(), Some(p.name.as_str())]
                 .into_iter()
                 .flatten()

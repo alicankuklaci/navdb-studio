@@ -77,6 +77,8 @@ impl Value {
                 }
             }
             Value::Text(s) => d.string_literal(s),
+            // T-SQL has no implicit varchar -> varbinary conversion
+            Value::Bytes(b) if d == Dialect::SqlServer => d.blob_literal(b),
             Value::Bytes(b) => match std::str::from_utf8(b) {
                 Ok(s) => d.string_literal(s),
                 Err(_) => d.blob_literal(b),

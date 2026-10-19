@@ -10,6 +10,10 @@ fn col_list(d: Dialect, cols: &[String]) -> String {
 /// Column definition fragment (without trailing comma).
 pub fn column_sql(d: Dialect, c: &ColumnDef, inline_pk: bool) -> String {
     let mut s = format!("{} ", d.quote_ident(&c.name));
+    if d == Dialect::SqlServer && c.extra.starts_with("AS ") {
+        s.push_str(&c.extra);
+        return s;
+    }
     let mut ty = c.data_type.trim().to_string();
     if ty.is_empty() {
         ty = match d {
@@ -25,10 +29,13 @@ pub fn column_sql(d: Dialect, c: &ColumnDef, inline_pk: bool) -> String {
         } else {
             s.push_str(&ty);
         }
+    } else if d == Dialect::SqlServer && c.auto_increment {
+        s.push_str(&ty);
+        s.push_str(" IDENTITY(1,1)");
     } else {
         s.push_str(&ty);
     }
-    if d == Dialect::MySql && !c.collation.is_empty() {
+    if matches!(d, Dialect::MySql | Dialect::SqlServer) && !c.collation.is_empty() {
         s.push_str(&format!(" COLLATE {}", c.collation));
     }
     if !c.nullable {
@@ -72,6 +79,8 @@ fn fk_sql(d: Dialect, fk: &ForeignKeyDef) -> String {
         // within same database keep it short
         Dialect::Sqlite => d.quote_ident(&fk.ref_table),
         Dialect::MySql if fk.ref_db.is_empty() => d.quote_ident(&fk.ref_table),
+        // T-SQL rejects database-qualified REFERENCES
+        Dialect::SqlServer => d.qualify(&ObjPath::new("", fk.ref_schema.clone(), fk.ref_table.clone())),
         _ => d.qualify(&ref_path),
     };
     let mut s = String::new();
@@ -272,6 +281,15 @@ pub fn create_trigger(d: Dialect, table: &ObjPath, tr: &TriggerDef) -> String {
                 )
             }
         }
+        Dialect::SqlServer => {
+            if tr.body.trim_start().to_ascii_uppercase().starts_with("CREATE") {
+                tr.body.trim().to_string()
+            } else {
+                let p = ObjPath::new("", table.schema.clone(), tr.name.clone());
+                let t = ObjPath::new("", table.schema.clone(), table.name.clone());
+                format!("CREATE TRIGGER {} ON {} {} {} AS\n{}", d.qualify(&p), d.qualify(&t), tr.timing, tr.event.replace(" OR ", ", "), tr.body.trim())
+            }
+        }
         _ => format!(
             "CREATE TRIGGER {} {} {} ON {} FOR EACH ROW {}",
             d.quote_ident(&tr.name),
@@ -305,6 +323,7 @@ pub fn alter_table(d: Dialect, old: &TableDef, new: &TableDef) -> Vec<String> {
         let old_t = d.qualify(&old.path);
         match d {
             Dialect::MySql => out.push(format!("ALTER TABLE {} RENAME TO {}", old_t, t)),
+            Dialect::SqlServer => out.push(rename_object(d, ObjectKind::Table, &old.path, &new.path.name)),
             _ => out.push(format!("ALTER TABLE {} RENAME TO {}", old_t, d.quote_ident(&new.path.name))),
         }
     }
@@ -323,6 +342,7 @@ pub fn alter_table(d: Dialect, old: &TableDef, new: &TableDef) -> Vec<String> {
         if !new.indexes.iter().any(|n| n == idx) {
             match d {
                 Dialect::MySql => out.push(format!("ALTER TABLE {} DROP INDEX {}", t, d.quote_ident(&idx.name))),
+                Dialect::SqlServer => out.push(format!("DROP INDEX {} ON {}", d.quote_ident(&idx.name), t)),
                 _ => {
                     let p = ObjPath::new(new.path.db.clone(), new.path.schema.clone(), idx.name.clone());
                     out.push(format!("DROP INDEX {}", d.qualify(&p)))
@@ -407,7 +427,7 @@ pub fn alter_table(d: Dialect, old: &TableDef, new: &TableDef) -> Vec<String> {
         if !opts.is_empty() {
             out.push(format!("ALTER TABLE {} {}", t, opts.join(" ")));
         }
-    } else if old.comment != new.comment {
+    } else if old.comment != new.comment && d != Dialect::SqlServer {
         out.push(format!("COMMENT ON TABLE {} IS {}", t, d.string_literal(&new.comment)));
     }
     // triggers
@@ -448,6 +468,11 @@ pub fn alter_table_with_renames(d: Dialect, old: &TableDef, new: &TableDef, rena
                     pre.push(format!("ALTER TABLE {} CHANGE COLUMN {} {}", t, d.quote_ident(from), column_sql(d, &newc, false)));
                     *c = newc;
                 }
+                Dialect::SqlServer => {
+                    let col = format!("{}.{}.{}", d.quote_ident(old.path.schema.as_deref().unwrap_or("dbo")), d.quote_ident(&old.path.name), d.quote_ident(from));
+                    pre.push(format!("EXEC sp_rename {}, {}, 'COLUMN'", d.string_literal(&col), d.string_literal(to)));
+                    c.name = to.clone();
+                }
                 _ => {
                     pre.push(format!("ALTER TABLE {} RENAME COLUMN {} TO {}", t, d.quote_ident(from), d.quote_ident(to)));
                     c.name = to.clone();
@@ -485,7 +510,8 @@ fn column_changes(d: Dialect, t: &str, old: &TableDef, new: &TableDef, _renames:
         ncp.primary_key = false;
         match old.column(&nc.name) {
             None => {
-                let mut s = format!("ALTER TABLE {} ADD COLUMN {}", t, column_sql(d, &ncp, false));
+                let kw = if d == Dialect::SqlServer { "ADD" } else { "ADD COLUMN" };
+                let mut s = format!("ALTER TABLE {} {} {}", t, kw, column_sql(d, &ncp, false));
                 if d == Dialect::MySql {
                     if pos == 0 {
                         s.push_str(" FIRST");
@@ -512,6 +538,23 @@ fn column_changes(d: Dialect, t: &str, old: &TableDef, new: &TableDef, _renames:
                     continue;
                 }
                 match d {
+                    Dialect::SqlServer => {
+                        let col = d.quote_ident(&nc.name);
+                        if !oc.data_type.eq_ignore_ascii_case(&nc.data_type) || oc.nullable != nc.nullable {
+                            out.push(format!(
+                                "ALTER TABLE {} ALTER COLUMN {} {} {}",
+                                t,
+                                col,
+                                nc.data_type,
+                                if nc.nullable { "NULL" } else { "NOT NULL" }
+                            ));
+                        }
+                        if oc.default != nc.default {
+                            if let Some(v) = nc.default.as_ref().filter(|v| !v.is_empty()) {
+                                out.push(format!("ALTER TABLE {} ADD DEFAULT {} FOR {}", t, v, col));
+                            }
+                        }
+                    }
                     Dialect::MySql => {
                         let mut s = format!("ALTER TABLE {} MODIFY COLUMN {}", t, column_sql(d, &ncp, false));
                         if moved {
@@ -641,6 +684,10 @@ pub fn drop_object(d: Dialect, kind: ObjectKind, p: &ObjPath, args: Option<&str>
         (ObjectKind::Function | ObjectKind::Procedure, Dialect::Postgres) => {
             format!("{}({})", d.qualify(p), args.unwrap_or(""))
         }
+        // T-SQL: DROP VIEW/PROCEDURE/FUNCTION/TRIGGER take no database prefix
+        (ObjectKind::View | ObjectKind::Function | ObjectKind::Procedure | ObjectKind::Trigger, Dialect::SqlServer) => {
+            d.qualify(&ObjPath::new("", p.schema.clone(), p.name.clone()))
+        }
         _ => d.qualify(p),
     };
     match kind {
@@ -669,6 +716,10 @@ pub fn rename_object(d: Dialect, kind: ObjectKind, p: &ObjPath, new_name: &str) 
         (ObjectKind::Table, Dialect::MySql) => format!("RENAME TABLE {} TO {}", d.qualify(p), d.qualify(&np)),
         (ObjectKind::View, Dialect::MySql) => format!("RENAME TABLE {} TO {}", d.qualify(p), d.qualify(&np)),
         (ObjectKind::View, Dialect::Postgres) => format!("ALTER VIEW {} RENAME TO {}", d.qualify(p), d.quote_ident(new_name)),
+        (_, Dialect::SqlServer) => {
+            let short = d.qualify(&ObjPath::new("", Some(p.schema.clone().unwrap_or_else(|| "dbo".into())), p.name.clone()));
+            format!("EXEC sp_rename {}, {}", d.string_literal(&short), d.string_literal(new_name))
+        }
         (ObjectKind::Sequence, Dialect::Postgres) => {
             format!("ALTER SEQUENCE {} RENAME TO {}", d.qualify(p), d.quote_ident(new_name))
         }
@@ -726,6 +777,12 @@ pub fn create_view(d: Dialect, p: &ObjPath, select: &str, or_replace: bool) -> S
     let body = select.trim().trim_end_matches(';');
     match d {
         Dialect::Sqlite => format!("CREATE VIEW {} AS\n{}", d.qualify(p), body),
+        Dialect::SqlServer => format!(
+            "CREATE {}VIEW {} AS\n{}",
+            if or_replace { "OR ALTER " } else { "" },
+            d.qualify(&ObjPath::new("", p.schema.clone(), p.name.clone())),
+            body
+        ),
         _ => format!(
             "CREATE {}VIEW {} AS\n{}",
             if or_replace { "OR REPLACE " } else { "" },
@@ -775,6 +832,31 @@ mod tests {
             indexes: vec![IndexDef { name: "ux_email".into(), columns: vec!["email".into()], unique: true, ..Default::default() }],
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn create_sqlserver() {
+        let mut t = users(Dialect::SqlServer);
+        t.path = ObjPath::new("app", Some("dbo".into()), "users");
+        t.foreign_keys.push(ForeignKeyDef {
+            name: "fk_org".into(),
+            columns: vec!["email".into()],
+            ref_db: "app".into(),
+            ref_schema: Some("dbo".into()),
+            ref_table: "orgs".into(),
+            ref_columns: vec!["mail".into()],
+            on_delete: "CASCADE".into(),
+            ..Default::default()
+        });
+        let s = script(&create_table(Dialect::SqlServer, &t));
+        assert!(s.contains("CREATE TABLE [app].[dbo].[users]"), "{}", s);
+        assert!(s.contains("[id] int IDENTITY(1,1) NOT NULL"), "{}", s);
+        assert!(s.contains("REFERENCES [dbo].[orgs] ([mail]) ON DELETE CASCADE"), "{}", s);
+        assert!(s.contains("CREATE UNIQUE INDEX [ux_email] ON [app].[dbo].[users] ([email])"), "{}", s);
+        let v = ObjPath::new("app", Some("dbo".into()), "v");
+        assert_eq!(drop_object(Dialect::SqlServer, ObjectKind::View, &v, None), "DROP VIEW [dbo].[v]");
+        assert_eq!(create_view(Dialect::SqlServer, &v, "SELECT 1", true), "CREATE OR ALTER VIEW [dbo].[v] AS\nSELECT 1");
+        assert_eq!(rename_object(Dialect::SqlServer, ObjectKind::Table, &t.path, "people"), "EXEC sp_rename '[dbo].[users]', 'people'");
     }
 
     #[test]
