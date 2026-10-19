@@ -326,3 +326,18 @@ fn iceberg_rest_mode() {
     d.execute(Some(&scope), "DROP TABLE iceberg.navdb_ns.items").unwrap();
     d.execute(Some(&root), "DROP SCHEMA iceberg.navdb_ns").unwrap();
 }
+
+#[test]
+fn duckdb_sessions_share_one_instance() {
+    let dir = temp_dir("shared");
+    let cfg = duck_cfg(&dir.join("shared.duckdb"));
+    let mut a = driver::connect(&cfg).unwrap();
+    let mut b = driver::connect(&cfg).unwrap();
+    a.execute(None, "CREATE TABLE t (id INTEGER); INSERT INTO t VALUES (1), (2)").unwrap();
+    assert_eq!(b.count(&ObjPath::new(cfg.default_database(), Some("main".into()), "t")).unwrap(), 2);
+    drop(a);
+    drop(b);
+    // the instance is released with the last session, so the file can be reopened read-only
+    let ro = ConnectionConfig { read_only: true, ..cfg.clone() };
+    assert_eq!(driver::connect(&ro).unwrap().count(&ObjPath::new(cfg.default_database(), Some("main".into()), "t")).unwrap(), 2);
+}

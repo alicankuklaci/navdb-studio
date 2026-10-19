@@ -27,6 +27,27 @@ pub struct DuckDriver {
     kind: DbKind,
     /// Iceberg "path" mode: tables are read-only views over `iceberg_scan`.
     iceberg_path: bool,
+    /// Key in [`INSTANCES`] for DuckDB connections.
+    instance: Option<String>,
+}
+
+/// One DuckDB database instance per file (or in-memory connection settings)
+/// in this process. Every session (navigator, query tabs, tools) gets a clone
+/// of it; separate instances on one file would not see each other's writes.
+static INSTANCES: std::sync::Mutex<Vec<(String, Connection, usize)>> = std::sync::Mutex::new(Vec::new());
+
+impl Drop for DuckDriver {
+    fn drop(&mut self) {
+        let Some(key) = &self.instance else { return };
+        if let Ok(mut v) = INSTANCES.lock() {
+            if let Some(i) = v.iter().position(|(k, _, _)| k == key) {
+                v[i].2 -= 1;
+                if v[i].2 == 0 {
+                    v.remove(i);
+                }
+            }
+        }
+    }
 }
 
 fn lit(s: &str) -> String {
@@ -46,6 +67,16 @@ impl DuckDriver {
         if cfg.kind == DbKind::Iceberg {
             return Self::connect_iceberg(cfg);
         }
+        let memory = cfg.database.is_empty() || cfg.database == ":memory:";
+        // in-memory databases are shared per saved connection, files per path
+        let owner = if memory { cfg.id.as_str() } else { "" };
+        let key = format!("{}|{}|{:?}|{}", cfg.database, cfg.read_only, cfg.attached, owner);
+        let mut pool = INSTANCES.lock().map_err(|_| anyhow!("DuckDB instance registry poisoned"))?;
+        if let Some(entry) = pool.iter_mut().find(|(k, _, _)| *k == key) {
+            let conn = entry.1.try_clone().map_err(sql_err)?;
+            entry.2 += 1;
+            return Ok(Self { conn, kind: cfg.kind, iceberg_path: false, instance: Some(key) });
+        }
         let mut config = Config::default().enable_autoload_extension(true).map_err(sql_err)?;
         if cfg.read_only {
             config = config.access_mode(AccessMode::ReadOnly).map_err(sql_err)?;
@@ -63,7 +94,8 @@ impl DuckDriver {
                 .map_err(sql_err)
                 .with_context(|| format!("attaching {}", file))?;
         }
-        Ok(Self { conn, kind: cfg.kind, iceberg_path: false })
+        pool.push((key.clone(), conn.try_clone().map_err(sql_err)?, 1));
+        Ok(Self { conn, kind: cfg.kind, iceberg_path: false, instance: Some(key) })
     }
 
     fn connect_iceberg(cfg: &ConnectionConfig) -> Result<Self> {
@@ -88,7 +120,7 @@ impl DuckDriver {
             }
             run("SET unsafe_enable_version_guessing = true")?;
             run(&format!("ATTACH ':memory:' AS {}", qi(ICEBERG_CATALOG)))?;
-            let drv = Self { conn, kind: cfg.kind, iceberg_path: true };
+            let drv = Self { conn, kind: cfg.kind, iceberg_path: true, instance: None };
             for (name, dir) in drv.iceberg_tables(&location)? {
                 drv.conn
                     .execute_batch(&format!(
@@ -106,7 +138,7 @@ impl DuckDriver {
             run(&secret)?;
         }
         run(&iceberg_attach_sql(cfg))?;
-        Ok(Self { conn, kind: cfg.kind, iceberg_path: false })
+        Ok(Self { conn, kind: cfg.kind, iceberg_path: false, instance: None })
     }
 
     /// Table folders (name, dir) below `location`: every `*/metadata/*.metadata.json`,
