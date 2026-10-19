@@ -71,9 +71,9 @@ pub fn install_fonts(ctx: &egui::Context) {
 }
 
 pub const NULL_COLOR: Color32 = Color32::from_rgb(150, 150, 150);
-pub const MODIFIED_BG: Color32 = Color32::from_rgba_unmultiplied(230, 170, 30, 70);
-pub const NEW_BG: Color32 = Color32::from_rgba_unmultiplied(60, 180, 100, 60);
-pub const DELETED_BG: Color32 = Color32::from_rgba_unmultiplied(220, 60, 60, 70);
+pub const MODIFIED_BG: Color32 = Color32::from_rgba_premultiplied(63, 47, 8, 70);
+pub const NEW_BG: Color32 = Color32::from_rgba_premultiplied(14, 42, 24, 60);
+pub const DELETED_BG: Color32 = Color32::from_rgba_premultiplied(60, 16, 16, 70);
 
 pub mod icon {
     pub const CONNECTION: &str = super::ph::PLUGS_CONNECTED;
