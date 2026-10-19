@@ -32,7 +32,7 @@ impl Tab for ObjectsTab {
     fn ui(&mut self, ui: &mut Ui, st: &mut AppState) {
         let sel = st.selection.clone();
         let Some(conn) = sel.conn.clone() else {
-            welcome(ui, st);
+            egui::ScrollArea::vertical().id_salt("welcome").show(ui, |ui| welcome(ui, st));
             return;
         };
         let Some(cfg) = st.config(&conn).cloned() else { return };
@@ -319,21 +319,30 @@ impl Tab for ObjectsTab {
 }
 
 fn welcome(ui: &mut Ui, st: &mut AppState) {
-    ui.add_space(40.0);
+    ui.add_space(30.0);
     ui.vertical_centered(|ui| {
         ui.heading(RichText::new("NavDB Studio").size(30.0));
-        ui.label(RichText::new("Database development & administration for MySQL, MariaDB, PostgreSQL, SQLite and Redis").weak());
-        ui.add_space(20.0);
-        ui.horizontal(|ui| {
-            let w = ui.available_width();
-            ui.add_space((w - 5.0 * 130.0).max(0.0) / 2.0);
-            for k in DbKind::ALL {
-                let b = egui::Button::image_and_text(ui::style::kind_logo(k, 30.0), RichText::new(k.label()).size(14.0));
-                if ui.add_sized([120.0, 70.0], b).clicked() {
-                    cmd::new_connection(st, k);
-                }
+        ui.label(RichText::new("Database development & administration for relational, analytics and NoSQL databases").weak());
+        ui.add_space(14.0);
+        let (cw, gap) = (136.0, 6.0);
+        let per_row = (((ui.available_width() + gap) / (cw + gap)).floor() as usize).clamp(1, 6);
+        for (group, kinds) in DbKind::GROUPS {
+            ui.add_space(6.0);
+            ui.label(RichText::new(group).small().strong());
+            for row in kinds.chunks(per_row) {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = gap;
+                    let w = ui.available_width();
+                    ui.add_space(((w - row.len() as f32 * (cw + gap) + gap) / 2.0).max(0.0));
+                    for &k in row {
+                        let b = egui::Button::image_and_text(ui::style::kind_logo(k, 20.0), RichText::new(k.label()).size(13.0));
+                        if ui.add_sized([cw, 38.0], b).clicked() {
+                            cmd::new_connection(st, k);
+                        }
+                    }
+                });
             }
-        });
+        }
         ui.add_space(20.0);
         ui.label(RichText::new("Create a connection, then double-click it in the navigator to connect.").weak());
         if !st.ws.connections.is_empty() {

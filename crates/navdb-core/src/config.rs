@@ -378,6 +378,8 @@ impl ConnectionConfig {
                 .file_name()
                 .map(|s| s.to_string_lossy().to_string())
                 .unwrap_or_else(|| self.kind.label().into())
+        } else if self.user.is_empty() {
+            format!("{}:{}", self.host, self.port)
         } else {
             format!("{}@{}", self.user, self.host)
         }
