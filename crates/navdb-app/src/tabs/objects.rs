@@ -72,7 +72,7 @@ impl Tab for ObjectsTab {
                     ui.ctx().data_mut(|m| m.insert_temp(nav_time_id(), now));
                     st.selection = Selection {
                         conn: Some(conn.clone()),
-                        scope: Some(navdb_core::Scope::new(d, if cfg.kind.has_schemas() { Some("public".into()) } else { None })),
+                        scope: Some(navdb_core::Scope::new(d, cfg.kind.default_schema().filter(|_| cfg.kind.has_schemas()).map(String::from))),
                         kind: Some(if cfg.kind.base() == DbKind::Redis { ObjectKind::Key } else { ObjectKind::Table }),
                         object: None,
                     };

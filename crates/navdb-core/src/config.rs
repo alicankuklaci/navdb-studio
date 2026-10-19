@@ -258,6 +258,18 @@ impl DbKind {
         matches!(self.base(), DbKind::MySql | DbKind::MariaDb | DbKind::PostgreSql)
     }
 
+    /// Cheap statement used to check a connection / switched database.
+    pub fn ping_query(self) -> &'static str {
+        match self.base() {
+            DbKind::Redis => "PING",
+            DbKind::MongoDb => "db.runCommand({ping: 1})",
+            DbKind::OpenSearch => "GET /",
+            DbKind::Oracle => "SELECT 1 FROM DUAL",
+            DbKind::Cassandra => "SELECT release_version FROM system.local",
+            _ => "SELECT 1",
+        }
+    }
+
     /// Language of the query editor: `sql`, `js` (MongoDB shell) or `txt`.
     pub fn query_language(self) -> &'static str {
         match self.base() {

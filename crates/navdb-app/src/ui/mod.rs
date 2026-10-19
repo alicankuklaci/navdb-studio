@@ -131,8 +131,9 @@ pub fn scope_picker(ui: &mut Ui, id: &str, st: &mut AppState, conn: &mut Option<
             oc.load_schemas(&sc.db);
             let schemas = oc.schemas.get(&sc.db).and_then(|l| l.ready()).cloned().unwrap_or_default();
             if sc.schema.is_none() {
-                if schemas.iter().any(|s| s == "public") {
-                    sc.schema = Some("public".into());
+                let def = oc.cfg.kind.default_schema().unwrap_or("public");
+                if schemas.iter().any(|s| s == def) {
+                    sc.schema = Some(def.into());
                     changed = true;
                 } else if let Some(f) = schemas.first() {
                     sc.schema = Some(f.clone());

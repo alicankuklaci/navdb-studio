@@ -577,6 +577,51 @@ fn template(d: Dialect, kind: ObjectKind, scope: &Scope, table: Option<&str>) ->
         ),
         (Dialect::Sqlite, ObjectKind::Index) => format!("CREATE INDEX {} ON {} ({});", q("new_index"), tbl_short, q("column_name")),
         (Dialect::Sqlite, _) => format!("CREATE {} {} ...;", kind.sql_keyword(), q("new_object")),
+
+        (Dialect::SqlServer, ObjectKind::Function) => format!(
+            "CREATE FUNCTION {}(@p_value INT)\nRETURNS INT\nAS\nBEGIN\n  RETURN @p_value * 2;\nEND",
+            qual("new_function")
+        ),
+        (Dialect::SqlServer, ObjectKind::Procedure) => format!(
+            "CREATE PROCEDURE {}\n  @p_id INT\nAS\nBEGIN\n  SET NOCOUNT ON;\n  SELECT @p_id AS id;\nEND",
+            qual("new_procedure")
+        ),
+        (Dialect::SqlServer, ObjectKind::Trigger) => format!(
+            "CREATE TRIGGER {} ON {}\nAFTER INSERT\nAS\nBEGIN\n  SET NOCOUNT ON;\nEND",
+            qual("new_trigger"),
+            tbl
+        ),
+        (Dialect::SqlServer, ObjectKind::Sequence) => format!("CREATE SEQUENCE {}\n  START WITH 1\n  INCREMENT BY 1;", qual("new_sequence")),
+        (Dialect::SqlServer, ObjectKind::Index) => format!("CREATE INDEX {} ON {} ({});", q("new_index"), tbl, q("column_name")),
+        (Dialect::SqlServer, _) => format!("CREATE {} {} ...;", kind.sql_keyword(), qual("new_object")),
+
+        (Dialect::Oracle, ObjectKind::Function) => format!(
+            "CREATE OR REPLACE FUNCTION {}(p_value IN NUMBER)\nRETURN NUMBER\nIS\nBEGIN\n  RETURN p_value * 2;\nEND;\n/",
+            qual("NEW_FUNCTION")
+        ),
+        (Dialect::Oracle, ObjectKind::Procedure) => format!(
+            "CREATE OR REPLACE PROCEDURE {}(p_id IN NUMBER)\nIS\nBEGIN\n  DBMS_OUTPUT.PUT_LINE('id = ' || p_id);\nEND;\n/",
+            qual("NEW_PROCEDURE")
+        ),
+        (Dialect::Oracle, ObjectKind::Trigger) => format!(
+            "CREATE OR REPLACE TRIGGER {}\nBEFORE INSERT ON {}\nFOR EACH ROW\nBEGIN\n  NULL;\nEND;\n/",
+            qual("NEW_TRIGGER"),
+            tbl
+        ),
+        (Dialect::Oracle, ObjectKind::Sequence) => format!("CREATE SEQUENCE {}\n  START WITH 1\n  INCREMENT BY 1\n  NOCACHE", qual("NEW_SEQUENCE")),
+        (Dialect::Oracle, ObjectKind::MaterializedView) => {
+            format!("CREATE MATERIALIZED VIEW {}\nREFRESH COMPLETE ON DEMAND\nAS\nSELECT * FROM {}", qual("NEW_MVIEW"), tbl)
+        }
+        (Dialect::Oracle, ObjectKind::Index) => format!("CREATE INDEX {} ON {} ({})", qual("NEW_INDEX"), tbl, q("COLUMN_NAME")),
+        (Dialect::Oracle, _) => format!("CREATE {} {} ...", kind.sql_keyword(), qual("NEW_OBJECT")),
+
+        (Dialect::Generic, ObjectKind::Function) => format!("CREATE MACRO {}(p_value) AS p_value * 2;", qual("new_function")),
+        (Dialect::Generic, ObjectKind::Sequence) => format!("CREATE SEQUENCE {} START 1 INCREMENT 1;", qual("new_sequence")),
+        (Dialect::Generic, ObjectKind::MaterializedView) => {
+            format!("CREATE MATERIALIZED VIEW {} AS\nSELECT *\nFROM {};", qual("new_materialized_view"), tbl)
+        }
+        (Dialect::Generic, ObjectKind::Index) => format!("CREATE INDEX {} ON {} ({});", q("new_index"), tbl, q("column_name")),
+        (Dialect::Generic, _) => format!("CREATE {} {} ...;", kind.sql_keyword(), qual("new_object")),
     }
 }
 

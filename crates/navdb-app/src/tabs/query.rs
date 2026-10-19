@@ -63,9 +63,7 @@ impl QueryTab {
             .and_then(|id| st.ws.queries.iter().find(|q| &q.id == id).map(|q| q.name.clone()))
             .unwrap_or_else(|| "Untitled".into());
         let (dialect, kind) = conn.as_ref().and_then(|c| st.config(c)).map(|c| (c.dialect(), c.kind)).unwrap_or((Dialect::MySql, DbKind::MySql));
-        if kind.base() == DbKind::Redis {
-            editor.language = "txt".into();
-        }
+        editor.language = kind.query_language().into();
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             conn,
@@ -100,7 +98,7 @@ impl QueryTab {
             if let Some(c) = st.config(&conn) {
                 self.dialect = c.dialect();
                 self.kind = c.kind;
-                self.editor.language = if c.kind.base() == DbKind::Redis { "txt".into() } else { "sql".into() };
+                self.editor.language = c.kind.query_language().into();
             }
         }
         self.session.clone()
@@ -118,10 +116,14 @@ impl QueryTab {
         let stop_on_error = st.prefs().stop_on_error;
         let dialect = self.dialect;
         let is_redis = self.kind.base() == DbKind::Redis;
+        // MongoDB shell scripts and search console requests are split by the driver
+        let whole = matches!(self.kind.base(), DbKind::MongoDb | DbKind::OpenSearch);
         let text = sql.clone();
         let pending = session.run(move |d| {
             let stmts: Vec<String> = if is_redis {
                 text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect()
+            } else if whole {
+                vec![text.clone()]
             } else {
                 sqlutil::split_statements(&text, dialect)
             };

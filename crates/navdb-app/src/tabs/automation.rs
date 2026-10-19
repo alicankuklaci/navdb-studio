@@ -74,7 +74,7 @@ fn scope_of(cfg: &ConnectionConfig, database: &str) -> Scope {
     let db = if database.trim().is_empty() { cfg.default_database() } else { database.trim().to_string() };
     let mut s = crate::commands::parse_scope(&db);
     if cfg.kind.has_schemas() && s.schema.is_none() {
-        s.schema = Some("public".into());
+        s.schema = cfg.kind.default_schema().map(String::from);
     }
     s
 }

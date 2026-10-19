@@ -126,8 +126,11 @@ pub fn drop_objects(st: &mut AppState, conn: &str, scope: &Scope, kind: ObjectKi
                 .iter()
                 .find(|o| &o.name == n)
                 .and_then(|o| o.extra.iter().find(|(k, _)| k == "Table").map(|(_, v)| v.clone()));
-            if cfg.kind.base() == DbKind::Redis {
-                return format!("DEL {}", quote_redis(n));
+            match cfg.kind.base() {
+                DbKind::Redis => return format!("DEL {}", quote_redis(n)),
+                DbKind::MongoDb => return format!("db.getCollection({}).drop()", serde_json::Value::String(n.clone())),
+                DbKind::OpenSearch => return format!("DELETE /{}", n),
+                _ => {}
             }
             match kind {
                 ObjectKind::Function | ObjectKind::Procedure if cfg.kind.base() == DbKind::PostgreSql => {
@@ -149,7 +152,7 @@ pub fn drop_objects(st: &mut AppState, conn: &str, scope: &Scope, kind: ObjectKi
             }
         })
         .collect();
-    let sql = stmts.join(";\n");
+    let sql = stmts.join(if cfg.kind.base() == DbKind::OpenSearch { "\n\n" } else { ";\n" });
     let conn = conn.to_string();
     let scope = scope.clone();
     let msg = format!("Are you sure you want to delete {} {}?\n\n{}", names.len(), if names.len() == 1 { kind.singular().to_lowercase() } else { kind.label().to_lowercase() }, names.join(", "));
@@ -172,7 +175,14 @@ pub fn empty_tables(st: &mut AppState, conn: &str, scope: &Scope, names: Vec<Str
     let d = cfg.dialect();
     let sql = names
         .iter()
-        .map(|n| if truncate { ddl::truncate_table(d, &scope.path(n.clone())) } else { ddl::empty_table(d, &scope.path(n.clone())) })
+        .map(|n| {
+            // document stores only understand the DELETE form
+            if truncate && cfg.kind.is_relational() {
+                ddl::truncate_table(d, &scope.path(n.clone()))
+            } else {
+                ddl::empty_table(d, &scope.path(n.clone()))
+            }
+        })
         .collect::<Vec<_>>()
         .join(";\n");
     let conn = conn.to_string();

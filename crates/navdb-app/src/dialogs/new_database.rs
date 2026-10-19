@@ -58,6 +58,11 @@ impl DatabaseDialog {
         let cfg = st.config(conn).cloned();
         let kind = cfg.as_ref().map(|c| c.kind).unwrap_or_default();
         let dialect = kind.dialect();
+        // the dialog's behaviour follows the driver family; DuckDB attaches files like SQLite
+        let kind = match kind.base() {
+            DbKind::DuckDb => DbKind::Sqlite,
+            k => k,
+        };
         let session = st.session(conn);
         let mut me = Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -138,7 +143,7 @@ impl DatabaseDialog {
                     }));
                 }
             }
-            DbKind::Redis => {}
+            _ => {}
         }
         me
     }
@@ -168,7 +173,7 @@ impl DatabaseDialog {
                         DbKind::Sqlite => {
                             self.file = v.first().cloned().unwrap_or_default();
                         }
-                        DbKind::Redis => {}
+                        _ => {}
                     }
                 }
             }
@@ -256,9 +261,19 @@ impl DatabaseDialog {
                 if self.file.trim().is_empty() {
                     return Err("Choose a database file.".into());
                 }
-                Ok(vec![ddl::create_database(d, name, self.file.trim(), "")])
+                Ok(vec![ddl::create_database(Dialect::Sqlite, name, self.file.trim(), "")])
             }
             DbKind::Redis => Err("Redis databases are fixed (db0..db15) and cannot be created.".into()),
+            _ if self.existing.is_some() => Ok(vec![]),
+            DbKind::MongoDb => Ok(vec![format!("use {}\ndb.createCollection(\"collection1\")", name)]),
+            DbKind::Cassandra => Ok(vec![format!(
+                "CREATE KEYSPACE {} WITH replication = {{'class': 'SimpleStrategy', 'replication_factor': 1}}",
+                d.quote_ident(name)
+            )]),
+            DbKind::Oracle => Err("Oracle schemas are users: create a user in Users instead.".into()),
+            DbKind::Trino | DbKind::Iceberg => Err("Catalogs are configured on the server; create a schema instead.".into()),
+            DbKind::OpenSearch => Err("OpenSearch has no databases; create an index with the query editor.".into()),
+            _ => Ok(vec![ddl::create_database(d, name, "", "")]),
         }
     }
 
@@ -386,6 +401,11 @@ impl DatabaseDialog {
             }
             DbKind::Redis => {
                 ui.label(RichText::new("Redis provides a fixed set of numbered databases (db0, db1, ...).\nCreating or editing databases is not applicable.").weak());
+                ui.end_row();
+            }
+            _ => {
+                ui.label(if self.kind == DbKind::Cassandra { "Keyspace name:" } else { "Database name:" });
+                ui.add_enabled(!editing, egui::TextEdit::singleline(&mut self.name).desired_width(280.0).min_size(egui::vec2(280.0, 0.0)));
                 ui.end_row();
             }
         });

@@ -110,6 +110,9 @@ fn condition(o: &Opts, col: &str) -> String {
                         format!("{} LIKE {} ESCAPE '\\'", c, pat)
                     }
                 }
+                _ if !o.kind.is_relational() => format!("{} LIKE {}", c, pat),
+                _ if o.case => format!("{} LIKE {}", as_text(o, &c), pat),
+                _ => format!("LOWER({}) LIKE LOWER({})", as_text(o, &c), pat),
             }
         }
         Mode::Exact => {
@@ -136,6 +139,9 @@ fn condition(o: &Opts, col: &str) -> String {
                         format!("{} = {} COLLATE NOCASE", c, v)
                     }
                 }
+                _ if !o.kind.is_relational() => format!("{} = {}", c, v),
+                _ if o.case => format!("{} = {}", as_text(o, &c), v),
+                _ => format!("LOWER({}) = LOWER({})", as_text(o, &c), v),
             }
         }
         Mode::Regex => match d {
@@ -143,7 +149,30 @@ fn condition(o: &Opts, col: &str) -> String {
             Dialect::MySql => format!("CAST({} AS CHAR) REGEXP {}", c, lit(&format!("{}{}", if o.case { "(?-i)" } else { "(?i)" }, o.text))),
             Dialect::Postgres => format!("CAST({} AS TEXT) {} {}", c, if o.case { "~" } else { "~*" }, lit(&o.text)),
             Dialect::Sqlite => format!("{} REGEXP {}", c, lit(&o.text)),
+            _ => {
+                let re = lit(&format!("{}{}", if o.case { "" } else { "(?i)" }, o.text));
+                let flags = if o.case { "'c'" } else { "'i'" };
+                match o.kind.base() {
+                    DbKind::DuckDb | DbKind::Iceberg => format!("regexp_matches({}, {})", as_text(o, &c), re),
+                    DbKind::ClickHouse => format!("match({}, {})", as_text(o, &c), re),
+                    DbKind::Trino => format!("regexp_like({}, {})", as_text(o, &c), re),
+                    DbKind::Oracle | DbKind::Vertica => format!("REGEXP_LIKE({}, {}, {})", as_text(o, &c), lit(&o.text), flags),
+                    // no regular expressions in T-SQL / CQL: fall back to a substring match
+                    DbKind::SqlServer => format!("{} LIKE {}", as_text(o, &c), lit(&format!("%{}%", like_escape(&o.text)))),
+                    _ => format!("{} LIKE {}", c, lit(&format!("%{}%", o.text))),
+                }
+            }
         },
+    }
+}
+
+/// Column cast to text for pattern matching.
+fn as_text(o: &Opts, c: &str) -> String {
+    match o.kind.base() {
+        DbKind::SqlServer => format!("CAST({} AS NVARCHAR(MAX))", c),
+        DbKind::Oracle => format!("TO_CHAR({})", c),
+        DbKind::ClickHouse => format!("toString({})", c),
+        _ => format!("CAST({} AS VARCHAR)", c),
     }
 }
 
@@ -190,7 +219,7 @@ fn is_textish(type_name: &str, kind: DbKind) -> bool {
     if t.contains("blob") || t.contains("binary") || t.contains("bytea") {
         return false;
     }
-    ["char", "text", "json", "enum", "set", "uuid", "xml", "clob", "string", "name", "citext", "inet"].iter().any(|k| t.contains(k))
+    ["char", "text", "json", "enum", "set", "uuid", "xml", "clob", "string", "name", "citext", "inet", "keyword", "mixed"].iter().any(|k| t.contains(k))
 }
 
 fn snippet(s: &str, o: &Opts) -> String {

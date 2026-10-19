@@ -73,14 +73,16 @@ impl ConsoleTab {
             move_cursor_end: false,
             scroll_bottom: true,
         };
-        let banner = match kind {
-            DbKind::Redis => "Redis console. One command per line. Type `clear` to clear the screen, `SELECT n` to switch database.",
-            DbKind::PostgreSql => "PostgreSQL console. End statements with `;`. `\\c db` switches database, `clear` clears the screen.",
-            DbKind::Sqlite => "SQLite console. End statements with `;`. `clear` clears the screen.",
-            _ => "MySQL console. End statements with `;`. `USE db` switches database, `clear` clears the screen.",
+        let banner = match kind.base() {
+            DbKind::Redis => "Redis console. One command per line. Type `clear` to clear the screen, `SELECT n` to switch database.".to_string(),
+            DbKind::PostgreSql => "PostgreSQL console. End statements with `;`. `\\c db` switches database, `clear` clears the screen.".to_string(),
+            DbKind::Sqlite => "SQLite console. End statements with `;`. `clear` clears the screen.".to_string(),
+            DbKind::MySql | DbKind::MariaDb => "MySQL console. End statements with `;`. `USE db` switches database, `clear` clears the screen.".to_string(),
+            DbKind::MongoDb => "MongoDB shell. One command per line, e.g. `db.users.find({age: {$gt: 30}})`. `use db` switches database, `show collections` lists collections.".to_string(),
+            _ => format!("{} console. End statements with `;`. `USE db` switches database, `clear` clears the screen.", kind.label()),
         };
         me.info(format!("Connected to {} ({})", me.conn_name, kind.label()));
-        me.info(banner.to_string());
+        me.info(banner);
         if let Some(s) = me.session.clone() {
             let p = s.run(|d| {
                 let v = d.server_version()?;
@@ -110,13 +112,14 @@ impl ConsoleTab {
         self.push(LineKind::Error, t);
     }
 
+    /// Statements are buffered until `;` (SQL) instead of running per line.
     fn is_sql(&self) -> bool {
-        self.kind.is_sql()
+        self.kind.query_language() == "sql"
     }
 
     fn prompt(&self, continuation: bool) -> String {
         let db = self.scope.as_ref().map(|s| s.db.clone()).unwrap_or_default();
-        match self.kind {
+        match self.kind.base() {
             DbKind::MySql | DbKind::MariaDb => {
                 if continuation {
                     "    -> ".into()
@@ -141,6 +144,9 @@ impl ConsoleTab {
                     format!("{}:{}[{}]> ", self.host, self.port, n)
                 }
             }
+            DbKind::MongoDb => format!("{}> ", if db.is_empty() { "test" } else { &db }),
+            _ if continuation => "    -> ".into(),
+            _ => format!("{} [{}]> ", self.kind.label().to_ascii_lowercase(), if db.is_empty() { "(none)" } else { &db }),
         }
     }
 
@@ -177,6 +183,8 @@ impl ConsoleTab {
                     word("use ").or_else(|| word("\\u "))
                 } else if self.kind.base() == DbKind::PostgreSql {
                     word("\\c ").or_else(|| word("\\connect "))
+                } else if !matches!(self.kind.base(), DbKind::Sqlite | DbKind::Oracle | DbKind::Trino) {
+                    word("use ")
                 } else {
                     None
                 };
@@ -198,6 +206,12 @@ impl ConsoleTab {
         if !self.is_sql() {
             self.remember(trimmed);
             let lower = trimmed.to_ascii_lowercase();
+            if self.kind.base() == DbKind::MongoDb {
+                if let Some(name) = trimmed.strip_prefix("use ") {
+                    self.switch_db(name.trim().trim_end_matches(';').to_string());
+                    return;
+                }
+            }
             let new_scope = if let Some(n) = lower.strip_prefix("select ") {
                 n.trim().parse::<u32>().ok().map(|n| Scope::new(format!("db{}", n), None))
             } else {
@@ -237,10 +251,7 @@ impl ConsoleTab {
         let Some(s) = self.session.clone() else { return };
         let scope = Scope::new(db.clone(), None);
         let sc = scope.clone();
-        let probe = match self.kind {
-            DbKind::Redis => "PING",
-            _ => "SELECT 1",
-        };
+        let probe = self.kind.ping_query();
         let p = s.run(move |d| d.execute(Some(&sc), probe));
         self.running = Some((p, Instant::now(), format!("\u{0}use {}", db), Some(scope)));
     }

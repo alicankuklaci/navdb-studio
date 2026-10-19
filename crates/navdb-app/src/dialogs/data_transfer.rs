@@ -424,7 +424,9 @@ pub(crate) mod common {
             return match to {
                 Dialect::Sqlite => "TEXT".into(),
                 Dialect::MySql => if keyed { "varchar(255)" } else { "longtext" }.into(),
-                Dialect::Postgres => "text".into(),
+                Dialect::Postgres | Dialect::Generic => "text".into(),
+                Dialect::SqlServer => if keyed { "nvarchar(255)" } else { "nvarchar(max)" }.into(),
+                Dialect::Oracle => if keyed { "VARCHAR2(255)" } else { "CLOB" }.into(),
             };
         }
         let (mut cat, args) = classify(from, ty);
@@ -486,6 +488,52 @@ pub(crate) mod common {
                 Cat::Date => "date".into(),
                 Cat::Time => "time".into(),
                 Cat::DateTime => "timestamp".into(),
+            },
+            Dialect::SqlServer => match cat {
+                Cat::SmallInt => "smallint".into(),
+                Cat::Int => "int".into(),
+                Cat::BigInt => "bigint".into(),
+                Cat::Decimal => format!("decimal{}", len("(20,6)")),
+                Cat::Float => "real".into(),
+                Cat::Double => "float".into(),
+                Cat::Bool => "bit".into(),
+                Cat::Char => format!("nchar{}", len("(1)")),
+                Cat::Varchar => format!("nvarchar{}", len("(255)")),
+                Cat::Text | Cat::Json => if keyed { "nvarchar(255)" } else { "nvarchar(max)" }.into(),
+                Cat::Uuid => "uniqueidentifier".into(),
+                Cat::Blob => if keyed { "varbinary(255)" } else { "varbinary(max)" }.into(),
+                Cat::Date => "date".into(),
+                Cat::Time => "time".into(),
+                Cat::DateTime => "datetime2".into(),
+            },
+            Dialect::Oracle => match cat {
+                Cat::SmallInt | Cat::Int | Cat::BigInt => "NUMBER(19)".into(),
+                Cat::Bool => "NUMBER(1)".into(),
+                Cat::Decimal => format!("NUMBER{}", args),
+                Cat::Float => "BINARY_FLOAT".into(),
+                Cat::Double => "BINARY_DOUBLE".into(),
+                Cat::Char => format!("CHAR{}", len("(1)")),
+                Cat::Varchar => format!("VARCHAR2{}", len("(255)")),
+                Cat::Text | Cat::Json => if keyed { "VARCHAR2(255)" } else { "CLOB" }.into(),
+                Cat::Uuid => "VARCHAR2(36)".into(),
+                Cat::Blob => "BLOB".into(),
+                Cat::Date | Cat::DateTime => "TIMESTAMP".into(),
+                Cat::Time => "VARCHAR2(16)".into(),
+            },
+            Dialect::Generic => match cat {
+                Cat::SmallInt => "SMALLINT".into(),
+                Cat::Int => "INTEGER".into(),
+                Cat::BigInt => "BIGINT".into(),
+                Cat::Decimal => format!("DECIMAL{}", len("(20,6)")),
+                Cat::Float => "REAL".into(),
+                Cat::Double => "DOUBLE".into(),
+                Cat::Bool => "BOOLEAN".into(),
+                Cat::Char | Cat::Varchar | Cat::Text | Cat::Uuid => "VARCHAR".into(),
+                Cat::Json => "JSON".into(),
+                Cat::Blob => "BLOB".into(),
+                Cat::Date => "DATE".into(),
+                Cat::Time => "TIME".into(),
+                Cat::DateTime => "TIMESTAMP".into(),
             },
         }
     }
@@ -1054,6 +1102,9 @@ fn dialect_name(d: Dialect) -> &'static str {
         Dialect::MySql => "MySQL / MariaDB",
         Dialect::Postgres => "PostgreSQL",
         Dialect::Sqlite => "SQLite",
+        Dialect::SqlServer => "SQL Server",
+        Dialect::Oracle => "Oracle",
+        Dialect::Generic => "SQL",
     }
 }
 
@@ -1195,7 +1246,7 @@ fn run_transfer(job: TransferJob, p: Shared) -> Result<()> {
         Dialect::Sqlite => {
             let _ = sink.exec("PRAGMA foreign_keys=OFF");
         }
-        Dialect::Postgres => {}
+        _ => {}
     }
     let mut deferred: Vec<(String, Vec<String>)> = Vec::new();
     let mut outcome: Result<()> = Ok(());
@@ -1241,7 +1292,7 @@ fn run_transfer(job: TransferJob, p: Shared) -> Result<()> {
         Dialect::Sqlite => {
             let _ = sink.exec("PRAGMA foreign_keys=ON");
         }
-        Dialect::Postgres => {}
+        _ => {}
     }
     if let Sink::File(w) = &mut sink {
         w.flush()?;

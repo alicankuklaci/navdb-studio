@@ -226,7 +226,9 @@ impl TableDesignTab {
             let mut id = ColumnDef::new("id", match dialect {
                 Dialect::MySql => "int",
                 Dialect::Postgres => "int4",
-                Dialect::Sqlite => "INTEGER",
+                Dialect::Sqlite | Dialect::Generic => "INTEGER",
+                Dialect::SqlServer => "int",
+                Dialect::Oracle => "NUMBER(10)",
             });
             id.nullable = false;
             id.primary_key = true;
@@ -729,7 +731,7 @@ impl TableDesignTab {
         let methods: &[&str] = match d {
             Dialect::MySql => &["BTREE", "HASH", "FULLTEXT", "SPATIAL"],
             Dialect::Postgres => &["btree", "hash", "gin", "gist", "brin"],
-            Dialect::Sqlite => &[],
+            _ => &[],
         };
         let mut select = None;
         egui::ScrollArea::both().id_salt(("idx-scroll", &self.id)).auto_shrink([false, false]).show(ui, |ui| {
@@ -789,8 +791,8 @@ impl TableDesignTab {
         for fk in &self.fks {
             let rscope = match d {
                 Dialect::MySql => Scope::new(if fk.ref_db.is_empty() { self.scope.db.clone() } else { fk.ref_db.clone() }, None),
-                Dialect::Postgres => Scope::new(self.scope.db.clone(), fk.ref_schema.clone().or_else(|| self.scope.schema.clone())),
-                Dialect::Sqlite => self.scope.clone(),
+                Dialect::Sqlite | Dialect::Oracle => self.scope.clone(),
+                _ => Scope::new(self.scope.db.clone(), fk.ref_schema.clone().or_else(|| self.scope.schema.clone())),
             };
             if let Some(c) = st.conn_mut(&self.conn) {
                 c.load_objects(&rscope, ObjectKind::Table);
@@ -819,8 +821,8 @@ impl TableDesignTab {
         egui::ScrollArea::both().id_salt(("fk-scroll", &self.id)).auto_shrink([false, false]).show(ui, |ui| {
             let ref_label = match d {
                 Dialect::MySql => "Ref. Database",
-                Dialect::Postgres => "Ref. Schema",
-                Dialect::Sqlite => "",
+                Dialect::Sqlite | Dialect::Oracle => "",
+                _ => "Ref. Schema",
             };
             egui::Grid::new(("fk-grid", &self.id)).num_columns(8).striped(true).spacing([8.0, 4.0]).min_row_height(22.0).show(ui, |ui| {
                 for h in ["", "Name", "Fields", ref_label, "Ref. Table", "Ref. Fields", "On Delete", "On Update"] {
@@ -849,7 +851,7 @@ impl TableDesignTab {
                                 }
                             });
                         }
-                        Dialect::Postgres => {
+                        Dialect::Postgres | Dialect::SqlServer | Dialect::Generic => {
                             let cur = fk.ref_schema.clone().or_else(|| self.scope.schema.clone()).unwrap_or_else(|| "public".into());
                             egui::ComboBox::from_id_salt(("fk-schema", &self.id, i)).width(120.0).selected_text(&cur).show_ui(ui, |ui| {
                                 for s in &schemas {
@@ -859,7 +861,7 @@ impl TableDesignTab {
                                 }
                             });
                         }
-                        Dialect::Sqlite => {
+                        Dialect::Sqlite | Dialect::Oracle => {
                             ui.label("");
                         }
                     }
@@ -990,6 +992,7 @@ impl TableDesignTab {
             Dialect::Postgres => "Body: the trigger function to call, e.g. my_trigger_fn() — or a complete CREATE TRIGGER statement.",
             Dialect::MySql => "Body: a single statement or BEGIN ... END block (NEW / OLD refer to the row).",
             Dialect::Sqlite => "Body: BEGIN ... END block (NEW / OLD refer to the row).",
+            _ => "Body: the trigger body (BEGIN ... END block).",
         };
         ui.label(RichText::new(hint).weak().small());
         let size = ui.available_size();
@@ -1069,6 +1072,9 @@ impl TableDesignTab {
             }
             Dialect::Sqlite => {
                 ui.label(RichText::new("SQLite tables have no additional options. An INTEGER primary key with \"Auto Inc.\" becomes AUTOINCREMENT.").weak());
+            }
+            _ => {
+                ui.label(RichText::new("This database has no additional table options in the designer.").weak());
             }
         }
     }
@@ -1270,6 +1276,7 @@ impl Tab for TableDesignTab {
                         Dialect::Postgres => "my_trigger_fn()".to_string(),
                         Dialect::MySql => "BEGIN\n  -- SET NEW.updated_at = NOW();\nEND".to_string(),
                         Dialect::Sqlite => "BEGIN\n  SELECT 1;\nEND".to_string(),
+                        _ => "BEGIN\n  NULL;\nEND".to_string(),
                     };
                     let n = self.triggers.len() + 1;
                     let tname = if self.name.trim().is_empty() { "table".to_string() } else { self.name.trim().to_string() };

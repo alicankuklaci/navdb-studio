@@ -281,7 +281,7 @@ fn database_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionC
                 let sc = Scope::new(db, Some(s.clone()));
                 let sid = ui.make_persistent_id(("schema", &c.id, db, &s));
                 let sel = st.selection.scope.as_ref() == Some(&sc) && st.selection.conn.as_deref() == Some(&c.id) && st.selection.kind.is_none();
-                CollapsingState::load_with_default_open(ui.ctx(), sid, s == "public")
+                CollapsingState::load_with_default_open(ui.ctx(), sid, Some(s.as_str()) == c.kind.default_schema())
                     .show_header(ui, |ui| {
                         let r = ui.selectable_label(sel, format!("{} {}", icon::SCHEMA, s));
                         drop_focus(&r);

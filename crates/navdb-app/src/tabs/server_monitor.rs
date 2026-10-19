@@ -86,7 +86,7 @@ struct Series {
 
 fn series_defs(kind: DbKind) -> Vec<SeriesDef> {
     let s = |label, key, rate, scale| SeriesDef { label, key, rate, scale };
-    match kind {
+    match kind.base() {
         DbKind::MySql | DbKind::MariaDb => vec![
             s("Threads connected", "Threads_connected", false, 1.0),
             s("Threads running", "Threads_running", false, 1.0),
@@ -107,7 +107,7 @@ fn series_defs(kind: DbKind) -> Vec<SeriesDef> {
             s("Ops / s", "instantaneous_ops_per_sec", false, 1.0),
             s("Commands / s", "total_commands_processed", true, 1.0),
         ],
-        DbKind::Sqlite => vec![],
+        _ => vec![],
     }
 }
 
@@ -115,7 +115,7 @@ fn series_defs(kind: DbKind) -> Vec<SeriesDef> {
 fn counters(kind: DbKind, snap: &ServerSnapshot) -> HashMap<String, f64> {
     let mut out = HashMap::new();
     let st = &snap.status;
-    match kind {
+    match kind.base() {
         DbKind::PostgreSql => {
             // per-database rows: sum every numeric column
             for (ci, c) in st.columns.iter().enumerate() {
@@ -157,7 +157,7 @@ fn set_variable_sql(kind: DbKind, name: &str, value: &str) -> Result<String, Str
     let v = value.trim();
     let numeric = !v.is_empty() && v.parse::<f64>().is_ok();
     let keyword = ["ON", "OFF", "DEFAULT", "TRUE", "FALSE"].iter().any(|k| k.eq_ignore_ascii_case(v));
-    Ok(match kind {
+    Ok(match kind.base() {
         DbKind::MySql | DbKind::MariaDb => {
             let lit = if numeric || keyword { v.to_string() } else { navdb_core::Dialect::MySql.string_literal(v) };
             format!("SET GLOBAL {} = {}", name, lit)
@@ -171,6 +171,19 @@ fn set_variable_sql(kind: DbKind, name: &str, value: &str) -> Result<String, Str
             let lit = if numeric || keyword || is_simple_name(v) { v.to_string() } else { navdb_core::Dialect::Sqlite.string_literal(v) };
             format!("PRAGMA {} = {}", name, lit)
         }
+        DbKind::SqlServer => {
+            let lit = if numeric { v.to_string() } else { navdb_core::Dialect::SqlServer.string_literal(v) };
+            format!("EXEC sp_configure '{}', {};\nRECONFIGURE", name.replace('\'', "''"), lit)
+        }
+        DbKind::Oracle => {
+            let lit = if numeric || keyword { v.to_string() } else { navdb_core::Dialect::Oracle.string_literal(v) };
+            format!("ALTER SYSTEM SET {} = {}", name, lit)
+        }
+        DbKind::DuckDb | DbKind::ClickHouse | DbKind::Vertica => {
+            let lit = if numeric || keyword { v.to_string() } else { navdb_core::Dialect::Generic.string_literal(v) };
+            format!("SET {} = {}", name, lit)
+        }
+        k => return Err(format!("Changing variables is not supported for {}", k.label())),
     })
 }
 

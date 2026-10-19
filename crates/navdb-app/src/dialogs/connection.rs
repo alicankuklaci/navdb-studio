@@ -28,6 +28,63 @@ pub struct ConnectionDialog {
     error: Option<String>,
 }
 
+struct OptionField {
+    key: &'static str,
+    label: &'static str,
+    hint: &'static str,
+    secret: bool,
+    /// Checkbox stored as "true"/"false"; `hint` holds the default.
+    flag: bool,
+}
+
+const fn opt(key: &'static str, label: &'static str, hint: &'static str) -> OptionField {
+    OptionField { key, label, hint, secret: false, flag: false }
+}
+
+const fn secret(key: &'static str, label: &'static str, hint: &'static str) -> OptionField {
+    OptionField { key, label, hint, secret: true, flag: false }
+}
+
+const fn flag(key: &'static str, label: &'static str, default: &'static str) -> OptionField {
+    OptionField { key, label, hint: default, secret: false, flag: true }
+}
+
+fn option_fields(cfg: &ConnectionConfig) -> Vec<OptionField> {
+    match cfg.kind.base() {
+        DbKind::MongoDb => vec![
+            opt("uri", "Connection URI:", "mongodb://… or mongodb+srv://… (overrides the fields above)"),
+            opt("auth_source", "Auth Database:", "admin"),
+            opt("replica_set", "Replica Set:", "(optional)"),
+        ],
+        DbKind::Oracle => vec![
+            opt("service_name", "Service Name:", "FREEPDB1"),
+            opt("sid", "SID:", "(instead of a service name)"),
+            opt("role", "Role:", "SYSDBA / SYSOPER (optional)"),
+            opt("oracle_client_dir", "Instant Client Dir:", "/opt/oracle/instantclient (optional)"),
+        ],
+        DbKind::SqlServer => vec![flag("trust_cert", "Trust Server Certificate:", "true")],
+        DbKind::Trino => vec![opt("schema", "Default Schema:", "(optional)"), opt("session_properties", "Session Properties:", "key=value, key2=value2")],
+        DbKind::OpenSearch => vec![secret("api_key", "API Key:", "(instead of user / password)"), flag("show_hidden", "Show system indices:", "false")],
+        DbKind::Cassandra => vec![opt("datacenter", "Local Datacenter:", "datacenter1"), opt("consistency", "Consistency:", "LOCAL_ONE")],
+        DbKind::Iceberg if cfg.option("catalog_type") == "path" => vec![
+            opt("s3_endpoint", "S3 Endpoint:", "(for s3:// paths) e.g. localhost:9000"),
+            opt("s3_region", "S3 Region:", "us-east-1"),
+            opt("s3_access_key", "S3 Access Key:", ""),
+            secret("s3_secret_key", "S3 Secret Key:", ""),
+        ],
+        DbKind::Iceberg => vec![
+            opt("uri", "Catalog URI:", "http://host:8181 (overrides host / port)"),
+            secret("token", "Bearer Token:", "(or OAuth2 client id / secret as user / password)"),
+            opt("oauth2_server_uri", "OAuth2 Server URI:", "(optional)"),
+            opt("s3_endpoint", "S3 Endpoint:", "(optional) e.g. localhost:9000"),
+            opt("s3_region", "S3 Region:", "us-east-1"),
+            opt("s3_access_key", "S3 Access Key:", ""),
+            secret("s3_secret_key", "S3 Secret Key:", ""),
+        ],
+        _ => vec![],
+    }
+}
+
 impl ConnectionDialog {
     pub fn new(cfg: ConnectionConfig, is_new: bool) -> Self {
         let port_text = cfg.port.to_string();
@@ -55,33 +112,70 @@ impl ConnectionDialog {
             ui.add(egui::TextEdit::singleline(&mut self.cfg.name).hint_text(hint).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)));
             ui.end_row();
             ui.label("Type:");
-            egui::ComboBox::from_id_salt("conn-kind").selected_text(self.cfg.kind.label()).show_ui(ui, |ui| {
-                for k in DbKind::ALL {
-                    if ui.selectable_label(self.cfg.kind == k, k.label()).clicked() && self.cfg.kind != k {
-                        self.cfg.kind = k;
-                        self.cfg.port = k.default_port();
-                        self.port_text = self.cfg.port.to_string();
-                        if self.cfg.user.is_empty() || self.cfg.user == "root" || self.cfg.user == "postgres" {
-                            self.cfg.user = k.default_user().into();
-                        }
-                        if !k.is_file_based() && self.cfg.host.is_empty() {
-                            self.cfg.host = "localhost".into();
+            ui.horizontal(|ui| {
+                ui.add(ui::style::kind_logo(self.cfg.kind, 18.0));
+                egui::ComboBox::from_id_salt("conn-kind").selected_text(self.cfg.kind.label()).width(220.0).height(560.0).show_ui(ui, |ui| {
+                    for (group, kinds) in DbKind::GROUPS {
+                        ui.label(RichText::new(group).small().weak());
+                        for &k in kinds {
+                            let b = egui::Button::image_and_text(ui::style::kind_logo(k, 16.0), k.label()).selected(self.cfg.kind == k).frame(false);
+                            if ui.add(b).clicked() && self.cfg.kind != k {
+                                self.set_kind(k);
+                                ui.close_menu();
+                            }
                         }
                     }
-                }
+                });
             });
             ui.end_row();
-            if self.cfg.kind.is_file_based() {
+            let iceberg_path = self.cfg.kind == DbKind::Iceberg && self.cfg.option("catalog_type") == "path";
+            if self.cfg.kind == DbKind::Iceberg {
+                ui.label("Catalog:");
+                ui.horizontal(|ui| {
+                    let mut path = iceberg_path;
+                    if ui.radio(!path, "REST catalog").clicked() {
+                        path = false;
+                    }
+                    if ui.radio(path, "Table directory").clicked() {
+                        path = true;
+                    }
+                    if path != iceberg_path {
+                        self.cfg.options.insert("catalog_type".into(), if path { "path" } else { "rest" }.into());
+                    }
+                });
+                ui.end_row();
+            }
+            if iceberg_path {
+                ui.label("Warehouse Path:");
+                ui.horizontal(|ui| {
+                    let path = self.cfg.options.entry("path".into()).or_default();
+                    ui.add(egui::TextEdit::singleline(path).desired_width(260.0).min_size(egui::vec2(260.0, 0.0)).hint_text("/data/warehouse or s3://bucket/warehouse"));
+                    if ui.button("Browse…").clicked() {
+                        if let Some(p) = rfd::FileDialog::new().pick_folder() {
+                            *path = p.display().to_string();
+                        }
+                    }
+                });
+                ui.end_row();
+                self.option_rows(ui);
+            } else if self.cfg.kind.is_file_based() {
+                let duck = self.cfg.kind == DbKind::DuckDb;
                 ui.label("Database File:");
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut self.cfg.database).desired_width(260.0).min_size(egui::vec2(260.0, 0.0)).hint_text("/path/to/file.sqlite"));
+                    let hint = if duck { "/path/to/file.duckdb (empty = in-memory)" } else { "/path/to/file.sqlite" };
+                    ui.add(egui::TextEdit::singleline(&mut self.cfg.database).desired_width(260.0).min_size(egui::vec2(260.0, 0.0)).hint_text(hint));
+                    let (filter, exts, new_name): (&str, &[&str], &str) = if duck {
+                        ("DuckDB", &["duckdb", "ddb", "db"], "database.duckdb")
+                    } else {
+                        ("SQLite", &["sqlite", "sqlite3", "db", "db3", "s3db"], "database.sqlite")
+                    };
                     if ui.button("Browse…").clicked() {
-                        if let Some(p) = rfd::FileDialog::new().add_filter("SQLite", &["sqlite", "sqlite3", "db", "db3", "s3db"]).pick_file() {
+                        if let Some(p) = rfd::FileDialog::new().add_filter(filter, exts).add_filter("All files", &["*"]).pick_file() {
                             self.cfg.database = p.display().to_string();
                         }
                     }
                     if ui.button("New…").clicked() {
-                        if let Some(p) = rfd::FileDialog::new().set_file_name("database.sqlite").save_file() {
+                        if let Some(p) = rfd::FileDialog::new().set_file_name(new_name).save_file() {
                             self.cfg.database = p.display().to_string();
                         }
                     }
@@ -110,19 +204,57 @@ impl ConnectionDialog {
                 ui.label("");
                 ui.checkbox(&mut self.cfg.save_password, "Save password");
                 ui.end_row();
-                ui.label(match self.cfg.kind {
-                    DbKind::PostgreSql => "Initial Database:",
-                    DbKind::Redis => "Database (db0..):",
-                    _ => "Default Database:",
-                });
-                ui.add(egui::TextEdit::singleline(&mut self.cfg.database).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)).hint_text(match self.cfg.kind {
-                    DbKind::PostgreSql => "postgres",
-                    DbKind::Redis => "db0",
-                    _ => "(optional)",
-                }));
-                ui.end_row();
+                let (label, hint) = match self.cfg.kind.base() {
+                    DbKind::PostgreSql => ("Initial Database:", "postgres"),
+                    DbKind::Redis => ("Database (db0..):", "db0"),
+                    DbKind::Cassandra => ("Default Keyspace:", "(optional)"),
+                    DbKind::Trino => ("Default Catalog:", "(optional)"),
+                    DbKind::Iceberg => ("Warehouse:", "warehouse name or s3://bucket/path"),
+                    DbKind::Oracle => ("Default Schema:", "(current user)"),
+                    _ => ("Default Database:", "(optional)"),
+                };
+                if self.cfg.kind.base() != DbKind::OpenSearch {
+                    ui.label(label);
+                    ui.add(egui::TextEdit::singleline(&mut self.cfg.database).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)).hint_text(hint));
+                    ui.end_row();
+                }
+                self.option_rows(ui);
             }
         });
+    }
+
+    fn set_kind(&mut self, k: DbKind) {
+        let old = self.cfg.kind;
+        self.cfg.kind = k;
+        self.cfg.port = k.default_port();
+        self.port_text = self.cfg.port.to_string();
+        if self.cfg.user.is_empty() || self.cfg.user == old.default_user() {
+            self.cfg.user = k.default_user().into();
+        }
+        if !k.is_file_based() && self.cfg.host.is_empty() {
+            self.cfg.host = "localhost".into();
+        }
+        if k == DbKind::Iceberg && self.cfg.option("catalog_type").is_empty() {
+            self.cfg.options.insert("catalog_type".into(), "rest".into());
+        }
+    }
+
+    /// Driver specific settings stored in `ConnectionConfig::options`.
+    fn option_rows(&mut self, ui: &mut egui::Ui) {
+        for f in option_fields(&self.cfg) {
+            ui.label(f.label);
+            let v = self.cfg.options.entry(f.key.to_string()).or_default();
+            if f.flag {
+                let mut on = v == "true" || (v.is_empty() && f.hint == "true");
+                if ui.checkbox(&mut on, "").changed() {
+                    *v = on.to_string();
+                }
+            } else {
+                ui.add(egui::TextEdit::singleline(v).password(f.secret).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)).hint_text(f.hint));
+            }
+            ui.end_row();
+        }
+        self.cfg.options.retain(|_, v| !v.is_empty());
     }
 
     fn advanced(&mut self, ui: &mut egui::Ui) {
@@ -335,7 +467,7 @@ impl Dialog for ConnectionDialog {
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button(RichText::new("  OK  ").strong()).clicked() {
-                        if self.cfg.kind.is_file_based() && self.cfg.database.trim().is_empty() {
+                        if self.cfg.kind == DbKind::Sqlite && self.cfg.database.trim().is_empty() {
                             self.error = Some("Choose a database file".into());
                             return;
                         }

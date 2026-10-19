@@ -18,13 +18,40 @@ pub fn apply(ctx: &egui::Context, dark: bool) {
 }
 
 pub fn kind_color(k: DbKind) -> Color32 {
-    match k {
-        DbKind::MySql => Color32::from_rgb(0, 117, 143),
-        DbKind::MariaDb => Color32::from_rgb(192, 118, 90),
-        DbKind::PostgreSql => Color32::from_rgb(51, 103, 145),
-        DbKind::Sqlite => Color32::from_rgb(68, 138, 196),
-        DbKind::Redis => Color32::from_rgb(214, 54, 41),
-    }
+    let (r, g, b) = match k {
+        DbKind::MySql => (0, 117, 143),
+        DbKind::MariaDb => (192, 118, 90),
+        DbKind::PostgreSql => (51, 103, 145),
+        DbKind::Sqlite => (68, 138, 196),
+        DbKind::Redis => (214, 54, 41),
+        DbKind::SqlServer => (204, 41, 39),
+        DbKind::Oracle => (224, 30, 30),
+        DbKind::MongoDb => (71, 162, 72),
+        DbKind::DuckDb => (200, 168, 0),
+        DbKind::Iceberg => (42, 111, 191),
+        DbKind::Vertica => (27, 79, 156),
+        DbKind::ClickHouse => (230, 172, 0),
+        DbKind::Trino => (221, 0, 161),
+        DbKind::Presto => (88, 144, 255),
+        DbKind::OpenSearch => (0, 94, 184),
+        DbKind::Elasticsearch => (0, 85, 113),
+        DbKind::Cassandra => (18, 135, 177),
+        DbKind::ScyllaDb => (63, 182, 204),
+        DbKind::TiDb => (220, 21, 11),
+        DbKind::SingleStore => (170, 0, 255),
+        DbKind::OceanBase => (0, 106, 255),
+        DbKind::StarRocks => (62, 100, 230),
+        DbKind::Doris => (46, 167, 195),
+        DbKind::CockroachDb => (105, 51, 255),
+        DbKind::YugabyteDb => (255, 110, 66),
+        DbKind::TimescaleDb => (240, 165, 0),
+        DbKind::Redshift => (140, 79, 255),
+        DbKind::Greenplum => (58, 161, 74),
+        DbKind::Valkey => (95, 111, 232),
+        DbKind::KeyDb => (215, 53, 76),
+        DbKind::Dragonfly => (122, 77, 255),
+    };
+    Color32::from_rgb(r, g, b)
 }
 
 /// Text glyph for a database kind (used inside plain-text labels).
@@ -32,7 +59,8 @@ pub fn kind_icon(_k: DbKind) -> &'static str {
     ph::DATABASE
 }
 
-/// Official product logo (Simple Icons, CC0) for a database kind.
+/// Product logo for a database kind: Simple Icons (CC0) where available,
+/// otherwise a database glyph in the product colour.
 pub fn kind_logo(k: DbKind, size: f32) -> egui::Image<'static> {
     let src = match k {
         DbKind::MySql => egui::include_image!("../../assets/logos/mysql.svg"),
@@ -40,8 +68,48 @@ pub fn kind_logo(k: DbKind, size: f32) -> egui::Image<'static> {
         DbKind::PostgreSql => egui::include_image!("../../assets/logos/postgresql.svg"),
         DbKind::Sqlite => egui::include_image!("../../assets/logos/sqlite.svg"),
         DbKind::Redis => egui::include_image!("../../assets/logos/redis.svg"),
+        DbKind::SqlServer => egui::include_image!("../../assets/logos/sqlserver.svg"),
+        DbKind::Oracle => egui::include_image!("../../assets/logos/oracle.svg"),
+        DbKind::MongoDb => egui::include_image!("../../assets/logos/mongodb.svg"),
+        DbKind::DuckDb => egui::include_image!("../../assets/logos/duckdb.svg"),
+        DbKind::Iceberg => egui::include_image!("../../assets/logos/iceberg.svg"),
+        DbKind::Vertica => egui::include_image!("../../assets/logos/vertica.svg"),
+        DbKind::ClickHouse => egui::include_image!("../../assets/logos/clickhouse.svg"),
+        DbKind::Trino => egui::include_image!("../../assets/logos/trino.svg"),
+        DbKind::Presto => egui::include_image!("../../assets/logos/presto.svg"),
+        DbKind::OpenSearch => egui::include_image!("../../assets/logos/opensearch.svg"),
+        DbKind::Elasticsearch => egui::include_image!("../../assets/logos/elasticsearch.svg"),
+        DbKind::Cassandra => egui::include_image!("../../assets/logos/apachecassandra.svg"),
+        DbKind::ScyllaDb => egui::include_image!("../../assets/logos/scylladb.svg"),
+        DbKind::TiDb => egui::include_image!("../../assets/logos/tidb.svg"),
+        DbKind::SingleStore => egui::include_image!("../../assets/logos/singlestore.svg"),
+        DbKind::OceanBase => egui::include_image!("../../assets/logos/oceanbase.svg"),
+        DbKind::StarRocks => egui::include_image!("../../assets/logos/starrocks.svg"),
+        DbKind::Doris => egui::include_image!("../../assets/logos/doris.svg"),
+        DbKind::CockroachDb => egui::include_image!("../../assets/logos/cockroachlabs.svg"),
+        DbKind::YugabyteDb => egui::include_image!("../../assets/logos/yugabytedb.svg"),
+        DbKind::TimescaleDb => egui::include_image!("../../assets/logos/timescale.svg"),
+        DbKind::Redshift => egui::include_image!("../../assets/logos/amazonredshift.svg"),
+        DbKind::Greenplum => egui::include_image!("../../assets/logos/greenplum.svg"),
+        DbKind::Valkey => egui::include_image!("../../assets/logos/valkey.svg"),
+        DbKind::KeyDb => egui::include_image!("../../assets/logos/keydb.svg"),
+        DbKind::Dragonfly => egui::include_image!("../../assets/logos/dragonfly.svg"),
     };
     egui::Image::new(src).fit_to_exact_size(egui::vec2(size, size))
+}
+
+/// "New Connection" picker: one submenu per group of database kinds.
+pub fn kind_menu(ui: &mut egui::Ui, mut on_pick: impl FnMut(DbKind)) {
+    for (group, kinds) in DbKind::GROUPS {
+        ui.menu_button(group, |ui| {
+            for &k in kinds {
+                if ui.add(egui::Button::image_and_text(kind_logo(k, 16.0), format!("{}…", k.label()))).clicked() {
+                    on_pick(k);
+                    ui.close_menu();
+                }
+            }
+        });
+    }
 }
 
 pub fn object_icon(k: ObjectKind) -> &'static str {

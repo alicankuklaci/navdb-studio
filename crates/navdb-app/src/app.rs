@@ -163,11 +163,10 @@ impl NavApp {
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {
                 ui.menu_button("New Connection", |ui| {
-                    for k in DbKind::ALL {
-                        if ui.add(egui::Button::image_and_text(ui::style::kind_logo(k, 16.0), format!("{}…", k.label()))).clicked() {
-                            cmd::new_connection(&mut self.st, k);
-                            ui.close_menu();
-                        }
+                    let mut picked = None;
+                    ui::style::kind_menu(ui, |k| picked = Some(k));
+                    if let Some(k) = picked {
+                        cmd::new_connection(&mut self.st, k);
                     }
                 });
                 if ui.button("New Query\t⌘T").clicked() {
@@ -323,13 +322,26 @@ impl NavApp {
             if conn_resp.clicked() {
                 ui.memory_mut(|m| m.toggle_popup(popup_id));
             }
-            egui::popup_below_widget(ui, popup_id, &conn_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
-                ui.set_min_width(160.0);
-                for k in DbKind::ALL {
-                    if ui.add(egui::Button::image_and_text(ui::style::kind_logo(k, 16.0), format!("{}…", k.label()))).clicked() {
-                        cmd::new_connection(&mut self.st, k);
+            egui::popup_below_widget(ui, popup_id, &conn_resp, egui::PopupCloseBehavior::CloseOnClickOutside, |ui| {
+                // one column per group so the 30+ connection types fit on screen
+                ui.horizontal_top(|ui| {
+                    for (gi, (group, kinds)) in DbKind::GROUPS.iter().enumerate() {
+                        if gi > 0 {
+                            ui.separator();
+                        }
+                        ui.vertical(|ui| {
+                            ui.set_min_width(150.0);
+                            ui.label(egui::RichText::new(*group).strong().small());
+                            for &k in kinds.iter() {
+                                let b = egui::Button::image_and_text(ui::style::kind_logo(k, 16.0), k.label()).frame(false);
+                                if ui.add(b).clicked() {
+                                    cmd::new_connection(&mut self.st, k);
+                                    ui.memory_mut(|m| m.close_popup());
+                                }
+                            }
+                        });
                     }
-                }
+                });
             });
             if ui::toolbar_button(ui, icon::NEW_QUERY, "New Query", false).clicked() {
                 cmd::new_query(&mut self.st, sel.conn.clone(), sel.scope.clone());
@@ -416,7 +428,7 @@ impl NavApp {
                     let dbs = oc.visible_databases();
                     let db = if dbs.contains(&def) { Some(def) } else { dbs.first().cloned() };
                     if let Some(db) = db {
-                        let schema = if oc.cfg.kind.has_schemas() { Some("public".to_string()) } else { None };
+                        let schema = oc.cfg.kind.default_schema().filter(|_| oc.cfg.kind.has_schemas()).map(String::from);
                         self.st.selection.scope = Some(navdb_core::Scope::new(db, schema));
                     }
                 }
