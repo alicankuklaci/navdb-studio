@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=NavDB Studio
+Comment=Multi-database administration tool
+Exec=navdb
+Icon=navdb-studio
+Terminal=false
+Categories=Development;Database;
+StartupWMClass=navdb

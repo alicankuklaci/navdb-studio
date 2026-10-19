@@ -2,6 +2,7 @@
 //!
 //! Key-based and agent authentication are supported; interactive password
 //! prompts are not, because the tunnel runs non-interactively (BatchMode).
+//! Windows 10+ ships the same OpenSSH client (`ssh.exe`) as an optional feature.
 
 use anyhow::{bail, Context, Result};
 use std::net::{TcpListener, TcpStream};
@@ -45,6 +46,13 @@ impl Tunnel {
         }
         let target = if ssh.user.is_empty() { ssh.host.clone() } else { format!("{}@{}", ssh.user, ssh.host) };
         cmd.arg(target).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            // the GUI build has no console; keep ssh.exe from opening its own window
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
         let mut child = cmd.spawn().context("starting ssh (is OpenSSH installed?)")?;
         let deadline = Instant::now() + Duration::from_secs(15);
         loop {

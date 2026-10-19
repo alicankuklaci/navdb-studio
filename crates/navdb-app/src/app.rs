@@ -307,7 +307,7 @@ impl NavApp {
                     ui.close_menu();
                 }
                 if ui.button("Open Data Folder").clicked() {
-                    let _ = std::process::Command::new("open").arg(config::data_dir()).spawn();
+                    crate::dialogs::dump::open_path(&config::data_dir());
                     ui.close_menu();
                 }
             });
