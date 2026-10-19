@@ -401,6 +401,11 @@ impl ConnectionConfig {
                 }
             }
             DbKind::Sqlite => "main".into(),
+            // Oracle "databases" are schemas; cfg.database holds the service name
+            DbKind::Oracle => {
+                let s = self.option("schema");
+                if s.is_empty() { self.user.to_uppercase() } else { s.to_uppercase() }
+            }
             DbKind::DuckDb => {
                 if self.database.is_empty() || self.database == ":memory:" {
                     "memory".into()

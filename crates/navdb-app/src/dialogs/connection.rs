@@ -57,8 +57,8 @@ fn option_fields(cfg: &ConnectionConfig) -> Vec<OptionField> {
             opt("replica_set", "Replica Set:", "(optional)"),
         ],
         DbKind::Oracle => vec![
-            opt("service_name", "Service Name:", "FREEPDB1"),
             opt("sid", "SID:", "(instead of a service name)"),
+            opt("schema", "Default Schema:", "(current user)"),
             opt("role", "Role:", "SYSDBA / SYSOPER (optional)"),
             opt("oracle_client_dir", "Instant Client Dir:", "/opt/oracle/instantclient (optional)"),
         ],
@@ -210,7 +210,7 @@ impl ConnectionDialog {
                     DbKind::Cassandra => ("Default Keyspace:", "(optional)"),
                     DbKind::Trino => ("Default Catalog:", "(optional)"),
                     DbKind::Iceberg => ("Warehouse:", "warehouse name or s3://bucket/path"),
-                    DbKind::Oracle => ("Default Schema:", "(current user)"),
+                    DbKind::Oracle => ("Service Name:", "FREEPDB1"),
                     _ => ("Default Database:", "(optional)"),
                 };
                 if self.cfg.kind.base() != DbKind::OpenSearch {
