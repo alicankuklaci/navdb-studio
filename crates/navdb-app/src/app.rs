@@ -360,10 +360,15 @@ impl NavApp {
             if others.clicked() {
                 ui.memory_mut(|m| m.toggle_popup(others_id));
             }
+            // only the object types the selected connection supports (all when none is open)
+            let supported = sel.conn.as_ref().and_then(|c| self.st.conn(c)).map(|oc| oc.object_kinds()).unwrap_or_default();
             egui::popup_below_widget(ui, others_id, &others, egui::PopupCloseBehavior::CloseOnClick, |ui| {
                 ui.set_min_width(170.0);
                 for k in [ObjectKind::Procedure, ObjectKind::Trigger, ObjectKind::Sequence, ObjectKind::MaterializedView, ObjectKind::Index, ObjectKind::Key] {
-                    if ui.button(format!("{} {}", crate::ui::style::object_icon(k), k.label())).clicked() {
+                    if !supported.is_empty() && !supported.contains(&k) {
+                        continue;
+                    }
+                    if ui.add(egui::Button::new(format!("{} {}", crate::ui::style::object_icon(k), k.label())).frame(false)).clicked() {
                         self.show_kind(k);
                     }
                 }

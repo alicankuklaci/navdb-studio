@@ -91,6 +91,7 @@ fn connection_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &Connectio
         let text = RichText::new(c.display_name());
         let text = if is_open { text.strong() } else { text };
         let resp = ui.selectable_label(selected, text);
+        drop_focus(&resp);
         let resp = if let Some(err) = st.conn(&c.id).and_then(|o| o.databases.error().map(|s| s.to_string())) {
             ui.colored_label(ui.visuals().error_fg_color, "⚠").on_hover_text(&err);
             resp
@@ -251,6 +252,7 @@ fn database_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionC
     let cs = load_state(ui, id, false);
     let header = cs.show_header(ui, |ui| {
         let resp = ui.selectable_label(selected, format!("{} {}", icon::DATABASE, db));
+        drop_focus(&resp);
         if resp.clicked() {
             st.selection = Selection { conn: Some(c.id.clone()), scope: Some(scope.clone()), kind: Some(ObjectKind::Table), object: None };
         }
@@ -282,6 +284,7 @@ fn database_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionC
                 CollapsingState::load_with_default_open(ui.ctx(), sid, s == "public")
                     .show_header(ui, |ui| {
                         let r = ui.selectable_label(sel, format!("{} {}", icon::SCHEMA, s));
+                        drop_focus(&r);
                         if r.clicked() {
                             st.selection = Selection { conn: Some(c.id.clone()), scope: Some(sc.clone()), kind: Some(ObjectKind::Table), object: None };
                         }
@@ -426,6 +429,7 @@ fn kind_groups(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionCon
                 .map(|v| format!(" ({})", v.len()))
                 .unwrap_or_default();
             let r = ui.selectable_label(sel, format!("{} {}{}", crate::ui::style::object_icon(kind), kind.label(), count));
+            drop_focus(&r);
             if r.clicked() {
                 st.selection = Selection { conn: Some(c.id.clone()), scope: Some(scope.clone()), kind: Some(kind), object: None };
             }
@@ -498,6 +502,7 @@ fn kind_groups(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionCon
             .body(|ui| {
                 for (qid, name) in queries.iter().filter(|(_, n)| matches(&ts.filter, n)) {
                     let r = ui.selectable_label(false, format!("{} {}", icon::QUERY, name));
+                    drop_focus(&r);
                     if r.double_clicked() {
                         cmd::open_saved_query(st, qid);
                     }
@@ -522,6 +527,7 @@ fn object_leaf(ui: &mut Ui, st: &mut AppState, c: &ConnectionConfig, scope: &Sco
         && st.selection.scope.as_ref() == Some(scope)
         && st.selection.object.as_deref() == Some(name);
     let r = ui.selectable_label(sel, format!("   {} {}", crate::ui::style::object_icon(kind), name));
+    drop_focus(&r);
     if r.clicked() {
         st.selection = Selection { conn: Some(c.id.clone()), scope: Some(scope.clone()), kind: Some(kind), object: Some(name.to_string()) };
     }
@@ -645,5 +651,13 @@ pub fn object_menu(ui: &mut Ui, st: &mut AppState, c: &ConnectionConfig, scope: 
     if ui.button(format!("{} Refresh", icon::REFRESH)).clicked() {
         st.refresh_scope(conn, scope);
         ui.close_menu();
+    }
+}
+
+/// Navigator rows don't take keyboard focus; otherwise a menu click that lands on a row
+/// leaves it drawn with the focus frame.
+fn drop_focus(r: &egui::Response) {
+    if r.has_focus() {
+        r.surrender_focus();
     }
 }
