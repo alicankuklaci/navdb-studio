@@ -144,7 +144,7 @@ impl BackupDialog {
             selected: None,
             panel: Panel::None,
             comment: String::new(),
-            sqlite_copy: kind == DbKind::Sqlite,
+            sqlite_copy: kind.base() == DbKind::Sqlite,
             structure_only: false,
             continue_on_error: false,
             progress: None,
@@ -185,7 +185,7 @@ impl BackupDialog {
             database: self.scope.display(),
             server: String::new(),
         };
-        let copy = self.sqlite_copy && self.kind == DbKind::Sqlite;
+        let copy = self.sqlite_copy && self.kind.base() == DbKind::Sqlite;
         let o = DumpOptions { data: !self.structure_only, ..Default::default() };
         let scope = self.scope.clone();
         let dir = self.dir.clone();
@@ -461,7 +461,7 @@ impl Dialog for BackupDialog {
                             ui.add(egui::TextEdit::singleline(&mut self.comment).desired_width(380.0).min_size(egui::vec2(380.0, 0.0)).hint_text("optional"));
                         });
                         ui.checkbox(&mut self.structure_only, "Structure only (no data)");
-                        if self.kind == DbKind::Sqlite {
+                        if self.kind.base() == DbKind::Sqlite {
                             ui.checkbox(&mut self.sqlite_copy, "Also save a copy of the database file (VACUUM INTO)");
                         }
                         ui.horizontal(|ui| {

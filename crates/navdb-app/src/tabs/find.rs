@@ -139,7 +139,7 @@ fn condition(o: &Opts, col: &str) -> String {
             }
         }
         Mode::Regex => match d {
-            Dialect::MySql if o.kind == DbKind::MySql => format!("REGEXP_LIKE({}, {}, '{}')", c, lit(&o.text), if o.case { "c" } else { "i" }),
+            Dialect::MySql if o.kind.base() == DbKind::MySql => format!("REGEXP_LIKE({}, {}, '{}')", c, lit(&o.text), if o.case { "c" } else { "i" }),
             Dialect::MySql => format!("CAST({} AS CHAR) REGEXP {}", c, lit(&format!("{}{}", if o.case { "(?-i)" } else { "(?i)" }, o.text))),
             Dialect::Postgres => format!("CAST({} AS TEXT) {} {}", c, if o.case { "~" } else { "~*" }, lit(&o.text)),
             Dialect::Sqlite => format!("{} REGEXP {}", c, lit(&o.text)),
@@ -185,7 +185,7 @@ fn text_matches(hay: &str, o: &Opts) -> bool {
 fn is_textish(type_name: &str, kind: DbKind) -> bool {
     let t = type_name.to_ascii_lowercase();
     if t.is_empty() {
-        return kind == DbKind::Sqlite;
+        return kind.base() == DbKind::Sqlite;
     }
     if t.contains("blob") || t.contains("binary") || t.contains("bytea") {
         return false;

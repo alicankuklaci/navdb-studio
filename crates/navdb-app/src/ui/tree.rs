@@ -181,7 +181,7 @@ fn connection_menu(ui: &mut Ui, st: &mut AppState, c: &ConnectionConfig, is_open
         cmd::server_monitor(st, &c.id);
         ui.close_menu();
     }
-    if c.kind.is_sql() && c.kind != DbKind::Sqlite && ui.button(format!("{} Users", icon::USER)).clicked() {
+    if c.kind.is_sql() && c.kind.base() != DbKind::Sqlite && ui.button(format!("{} Users", icon::USER)).clicked() {
         cmd::users(st, &c.id);
         ui.close_menu();
     }
@@ -248,7 +248,7 @@ fn database_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionC
     let id = ui.make_persistent_id(("db", &c.id, db));
     let scope = Scope::new(db, None);
     let selected = st.selection.conn.as_deref() == Some(&c.id) && st.selection.scope.as_ref() == Some(&scope) && st.selection.kind.is_none();
-    let is_default = c.kind == DbKind::Sqlite || c.default_database() == db;
+    let is_default = c.kind.base() == DbKind::Sqlite || c.default_database() == db;
     let cs = load_state(ui, id, false);
     let header = cs.show_header(ui, |ui| {
         let resp = ui.selectable_label(selected, format!("{} {}", icon::DATABASE, db));
@@ -312,7 +312,7 @@ fn database_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionC
 fn database_menu(ui: &mut Ui, st: &mut AppState, c: &ConnectionConfig, db: &str) {
     let scope = Scope::new(db, None);
     if c.kind.is_sql() {
-        if c.kind != DbKind::Sqlite || db != "main" {
+        if c.kind.base() != DbKind::Sqlite || db != "main" {
             if ui.button("Edit Database…").clicked() {
                 cmd::edit_database(st, &c.id, db);
                 ui.close_menu();
@@ -562,7 +562,7 @@ pub fn object_menu(ui: &mut Ui, st: &mut AppState, c: &ConnectionConfig, scope: 
                 cmd::empty_tables(st, conn, scope, vec![name.to_string()], false);
                 ui.close_menu();
             }
-            if c.kind != DbKind::Sqlite && ui.button("Truncate Table").clicked() {
+            if c.kind.base() != DbKind::Sqlite && ui.button("Truncate Table").clicked() {
                 cmd::empty_tables(st, conn, scope, vec![name.to_string()], true);
                 ui.close_menu();
             }

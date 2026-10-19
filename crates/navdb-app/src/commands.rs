@@ -126,22 +126,22 @@ pub fn drop_objects(st: &mut AppState, conn: &str, scope: &Scope, kind: ObjectKi
                 .iter()
                 .find(|o| &o.name == n)
                 .and_then(|o| o.extra.iter().find(|(k, _)| k == "Table").map(|(_, v)| v.clone()));
-            if cfg.kind == DbKind::Redis {
+            if cfg.kind.base() == DbKind::Redis {
                 return format!("DEL {}", quote_redis(n));
             }
             match kind {
-                ObjectKind::Function | ObjectKind::Procedure if cfg.kind == DbKind::PostgreSql => {
+                ObjectKind::Function | ObjectKind::Procedure if cfg.kind.base() == DbKind::PostgreSql => {
                     let (base, args) = match n.find('(') {
                         Some(p) => (&n[..p], n[p + 1..].trim_end_matches(')')),
                         None => (n.as_str(), ""),
                     };
                     ddl::drop_object(d, kind, &scope.path(base), Some(args))
                 }
-                ObjectKind::Trigger if cfg.kind == DbKind::PostgreSql => {
+                ObjectKind::Trigger if cfg.kind.base() == DbKind::PostgreSql => {
                     let t = scope.path(extra_table.unwrap_or_default());
                     ddl::drop_trigger(d, &t, n)
                 }
-                ObjectKind::Index if cfg.kind == DbKind::MySql || cfg.kind == DbKind::MariaDb => {
+                ObjectKind::Index if cfg.kind.base() == DbKind::MySql || cfg.kind.base() == DbKind::MariaDb => {
                     let t = d.qualify(&scope.path(extra_table.unwrap_or_default()));
                     ddl::drop_object(d, kind, &scope.path(n.clone()), Some(&t))
                 }
@@ -188,7 +188,7 @@ pub fn empty_tables(st: &mut AppState, conn: &str, scope: &Scope, names: Vec<Str
 pub fn rename_object(st: &mut AppState, conn: &str, scope: &Scope, kind: ObjectKind, name: &str) {
     let Some(cfg) = st.config(conn) else { return };
     let d = cfg.dialect();
-    let is_redis = cfg.kind == DbKind::Redis;
+    let is_redis = cfg.kind.base() == DbKind::Redis;
     let conn = conn.to_string();
     let scope = scope.clone();
     let old = name.to_string();

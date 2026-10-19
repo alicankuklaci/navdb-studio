@@ -8,12 +8,20 @@ pub enum Dialect {
     MySql,
     Postgres,
     Sqlite,
+    /// T-SQL (SQL Server): `[ident]`, `OFFSET .. FETCH`.
+    SqlServer,
+    /// Oracle: `"IDENT"`, `OFFSET .. FETCH`, no `LIMIT`.
+    Oracle,
+    /// ANSI-style SQL used by DuckDB, ClickHouse, Trino, Vertica, CQL and the
+    /// SQL subsets accepted by the MongoDB / OpenSearch drivers.
+    Generic,
 }
 
 impl Dialect {
     pub fn quote_ident(self, name: &str) -> String {
         match self {
             Dialect::MySql => format!("`{}`", name.replace('`', "``")),
+            Dialect::SqlServer => format!("[{}]", name.replace(']', "]]")),
             _ => format!("\"{}\"", name.replace('"', "\"\"")),
         }
     }
@@ -37,6 +45,22 @@ impl Dialect {
                     self.quote_ident(&p.name)
                 } else {
                     format!("{}.{}", self.quote_ident(&p.db), self.quote_ident(&p.name))
+                }
+            }
+            Dialect::SqlServer | Dialect::Generic => [Some(p.db.as_str()), p.schema.as_deref(), Some(p.name.as_str())]
+                .into_iter()
+                .flatten()
+                .filter(|x| !x.is_empty())
+                .map(|x| self.quote_ident(x))
+                .collect::<Vec<_>>()
+                .join("."),
+            // Oracle: database = owning schema (user)
+            Dialect::Oracle => {
+                let owner = p.schema.as_deref().filter(|s| !s.is_empty()).unwrap_or(&p.db);
+                if owner.is_empty() {
+                    self.quote_ident(&p.name)
+                } else {
+                    format!("{}.{}", self.quote_ident(owner), self.quote_ident(&p.name))
                 }
             }
         }
@@ -70,11 +94,16 @@ impl Dialect {
         match self {
             Dialect::MySql => format!("0x{}", h),
             Dialect::Postgres => format!("'\\x{}'::bytea", h),
-            Dialect::Sqlite => format!("X'{}'", h),
+            Dialect::Sqlite | Dialect::Generic => format!("X'{}'", h),
+            Dialect::SqlServer => format!("0x{}", h),
+            Dialect::Oracle => format!("HEXTORAW('{}')", h),
         }
     }
 
     pub fn limit_clause(self, limit: usize, offset: usize) -> String {
+        if matches!(self, Dialect::SqlServer | Dialect::Oracle) {
+            return format!(" OFFSET {} ROWS FETCH NEXT {} ROWS ONLY", offset, limit);
+        }
         if offset > 0 {
             format!(" LIMIT {} OFFSET {}", limit, offset)
         } else {
@@ -103,11 +132,26 @@ impl Dialect {
                 "money", "xml", "point", "tsvector", "int4[]", "text[]",
             ],
             Dialect::Sqlite => &["INTEGER", "TEXT", "REAL", "BLOB", "NUMERIC", "BOOLEAN", "DATETIME", "VARCHAR"],
+            Dialect::SqlServer => &[
+                "int", "bigint", "smallint", "tinyint", "bit", "decimal", "numeric", "money", "float",
+                "real", "char", "varchar", "nchar", "nvarchar", "text", "ntext", "binary", "varbinary",
+                "date", "datetime", "datetime2", "datetimeoffset", "smalldatetime", "time",
+                "uniqueidentifier", "xml", "image",
+            ],
+            Dialect::Oracle => &[
+                "NUMBER", "INTEGER", "FLOAT", "BINARY_FLOAT", "BINARY_DOUBLE", "CHAR", "NCHAR",
+                "VARCHAR2", "NVARCHAR2", "CLOB", "NCLOB", "BLOB", "RAW", "DATE", "TIMESTAMP",
+                "TIMESTAMP WITH TIME ZONE", "INTERVAL DAY TO SECOND", "JSON",
+            ],
+            Dialect::Generic => &[
+                "INTEGER", "BIGINT", "SMALLINT", "DOUBLE", "REAL", "DECIMAL", "BOOLEAN", "VARCHAR",
+                "TEXT", "DATE", "TIME", "TIMESTAMP", "BLOB", "JSON", "UUID",
+            ],
         }
     }
 
     pub fn supports_comments(self) -> bool {
-        !matches!(self, Dialect::Sqlite)
+        matches!(self, Dialect::MySql | Dialect::Postgres)
     }
 
     pub fn explain_prefix(self) -> &'static str {
@@ -115,6 +159,8 @@ impl Dialect {
             Dialect::MySql => "EXPLAIN ",
             Dialect::Postgres => "EXPLAIN (FORMAT TEXT) ",
             Dialect::Sqlite => "EXPLAIN QUERY PLAN ",
+            Dialect::Oracle => "EXPLAIN PLAN FOR ",
+            Dialect::SqlServer | Dialect::Generic => "EXPLAIN ",
         }
     }
 }
@@ -137,5 +183,9 @@ mod tests {
         assert_eq!(Dialect::MySql.qualify(&p), "`db`.`t`");
         assert_eq!(Dialect::Postgres.qualify(&p), "\"public\".\"t\"");
         assert_eq!(Dialect::Sqlite.qualify(&ObjPath::new("main", None, "t")), "\"t\"");
+        assert_eq!(Dialect::SqlServer.qualify(&ObjPath::new("db", Some("dbo".into()), "t")), "[db].[dbo].[t]");
+        assert_eq!(Dialect::Generic.qualify(&ObjPath::new("ks", None, "t")), "\"ks\".\"t\"");
+        assert_eq!(Dialect::Oracle.qualify(&ObjPath::new("HR", None, "EMP")), "\"HR\".\"EMP\"");
+        assert_eq!(Dialect::Oracle.limit_clause(10, 20), " OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY");
     }
 }

@@ -99,7 +99,7 @@ fn fk_action(c: &str) -> String {
 
 impl Driver for PgDriver {
     fn kind(&self) -> DbKind {
-        DbKind::PostgreSql
+        self.cfg.kind
     }
 
     fn server_version(&mut self) -> Result<String> {

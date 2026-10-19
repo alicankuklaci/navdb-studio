@@ -126,7 +126,7 @@ impl Dialog for ExecuteSqlDialog {
                     ui.horizontal(|ui| {
                         ui.add(egui::TextEdit::singleline(&mut self.path).desired_width(380.0).min_size(egui::vec2(380.0, 0.0)).hint_text("/path/to/script.sql"));
                         if ui.button("Browse…").clicked() {
-                            let redis = self.conn.as_deref().and_then(|c| st.config(c)).map(|c| c.kind == DbKind::Redis).unwrap_or(false);
+                            let redis = self.conn.as_deref().and_then(|c| st.config(c)).map(|c| c.kind.base() == DbKind::Redis).unwrap_or(false);
                             let exts: &[&str] = if redis { &["txt", "redis"] } else { &["sql", "txt"] };
                             if let Some(p) = rfd::FileDialog::new().add_filter("SQL script", exts).add_filter("All files", &["*"]).pick_file() {
                                 self.path = p.display().to_string();

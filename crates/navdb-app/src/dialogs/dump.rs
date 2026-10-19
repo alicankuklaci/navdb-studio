@@ -330,7 +330,7 @@ pub(crate) fn run_statements(
 
 /// Split a script for the given connection kind (Redis: one command per line).
 pub(crate) fn split_script(sql: &str, kind: DbKind) -> Vec<String> {
-    if kind == DbKind::Redis {
+    if kind.base() == DbKind::Redis {
         sql.lines()
             .map(|l| l.trim())
             .filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with("--"))

@@ -60,6 +60,7 @@ pub fn dump(
                 writeln!(w, "SET search_path TO {};\n", d.quote_ident(s))?;
             }
         }
+        _ => {}
     }
     let mut tables: Vec<String> = drv.list_objects(scope, ObjectKind::Table)?.into_iter().map(|o| o.name).collect();
     if !o.tables.is_empty() {

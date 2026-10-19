@@ -13,6 +13,7 @@ pub mod export;
 pub mod import;
 pub mod model;
 pub mod session;
+pub mod sqlmini;
 pub mod sqlutil;
 pub mod ssh;
 pub mod sync;

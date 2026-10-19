@@ -8,6 +8,7 @@ use crate::value::{ColumnMeta, QueryResult, Value};
 pub struct RedisDriver {
     conn: redis::Connection,
     current_db: i64,
+    kind: DbKind,
 }
 
 /// Split a redis-cli style command line honouring single/double quotes.
@@ -118,7 +119,7 @@ impl RedisDriver {
         let conn = client
             .get_connection_with_timeout(std::time::Duration::from_secs(cfg.connect_timeout_secs.max(1)))
             .with_context(|| format!("connecting to redis {}:{}", cfg.host, cfg.port))?;
-        Ok(Self { conn, current_db: db })
+        Ok(Self { conn, current_db: db, kind: cfg.kind })
     }
 
     fn raw(&mut self, args: &[String]) -> Result<redis::Value> {
@@ -152,7 +153,7 @@ fn urlencode(s: &str) -> String {
 
 impl Driver for RedisDriver {
     fn kind(&self) -> DbKind {
-        DbKind::Redis
+        self.kind
     }
 
     fn server_version(&mut self) -> Result<String> {

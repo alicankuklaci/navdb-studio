@@ -11,15 +11,101 @@ pub enum DbKind {
     PostgreSql,
     Sqlite,
     Redis,
+    SqlServer,
+    Oracle,
+    MongoDb,
+    DuckDb,
+    Iceberg,
+    Vertica,
+    ClickHouse,
+    Trino,
+    Presto,
+    OpenSearch,
+    Elasticsearch,
+    Cassandra,
+    ScyllaDb,
+    // wire-compatible variants served by the MySQL driver
+    TiDb,
+    SingleStore,
+    OceanBase,
+    StarRocks,
+    Doris,
+    // wire-compatible variants served by the PostgreSQL driver
+    CockroachDb,
+    YugabyteDb,
+    TimescaleDb,
+    Redshift,
+    Greenplum,
+    // wire-compatible variants served by the Redis driver
+    Valkey,
+    KeyDb,
+    Dragonfly,
 }
 
 impl DbKind {
-    pub const ALL: [DbKind; 5] = [
+    pub const ALL: [DbKind; 31] = [
         DbKind::MySql,
         DbKind::MariaDb,
         DbKind::PostgreSql,
         DbKind::Sqlite,
         DbKind::Redis,
+        DbKind::SqlServer,
+        DbKind::Oracle,
+        DbKind::MongoDb,
+        DbKind::DuckDb,
+        DbKind::Iceberg,
+        DbKind::Vertica,
+        DbKind::ClickHouse,
+        DbKind::Trino,
+        DbKind::Presto,
+        DbKind::OpenSearch,
+        DbKind::Elasticsearch,
+        DbKind::Cassandra,
+        DbKind::ScyllaDb,
+        DbKind::TiDb,
+        DbKind::SingleStore,
+        DbKind::OceanBase,
+        DbKind::StarRocks,
+        DbKind::Doris,
+        DbKind::CockroachDb,
+        DbKind::YugabyteDb,
+        DbKind::TimescaleDb,
+        DbKind::Redshift,
+        DbKind::Greenplum,
+        DbKind::Valkey,
+        DbKind::KeyDb,
+        DbKind::Dragonfly,
+    ];
+
+    /// Connection types grouped the way the "New Connection" menu shows them.
+    pub const GROUPS: [(&'static str, &'static [DbKind]); 5] = [
+        ("Relational", &[DbKind::MySql, DbKind::MariaDb, DbKind::PostgreSql, DbKind::SqlServer, DbKind::Oracle, DbKind::Sqlite]),
+        (
+            "MySQL Compatible",
+            &[DbKind::TiDb, DbKind::SingleStore, DbKind::OceanBase, DbKind::StarRocks, DbKind::Doris],
+        ),
+        (
+            "PostgreSQL Compatible",
+            &[DbKind::CockroachDb, DbKind::YugabyteDb, DbKind::TimescaleDb, DbKind::Redshift, DbKind::Greenplum],
+        ),
+        (
+            "Analytics",
+            &[DbKind::DuckDb, DbKind::ClickHouse, DbKind::Vertica, DbKind::Trino, DbKind::Presto, DbKind::Iceberg],
+        ),
+        (
+            "NoSQL",
+            &[
+                DbKind::MongoDb,
+                DbKind::Redis,
+                DbKind::Valkey,
+                DbKind::KeyDb,
+                DbKind::Dragonfly,
+                DbKind::OpenSearch,
+                DbKind::Elasticsearch,
+                DbKind::Cassandra,
+                DbKind::ScyllaDb,
+            ],
+        ),
     ];
 
     pub fn label(self) -> &'static str {
@@ -29,45 +115,156 @@ impl DbKind {
             DbKind::PostgreSql => "PostgreSQL",
             DbKind::Sqlite => "SQLite",
             DbKind::Redis => "Redis",
+            DbKind::SqlServer => "SQL Server",
+            DbKind::Oracle => "Oracle",
+            DbKind::MongoDb => "MongoDB",
+            DbKind::DuckDb => "DuckDB",
+            DbKind::Iceberg => "Apache Iceberg",
+            DbKind::Vertica => "Vertica",
+            DbKind::ClickHouse => "ClickHouse",
+            DbKind::Trino => "Trino",
+            DbKind::Presto => "Presto",
+            DbKind::OpenSearch => "OpenSearch",
+            DbKind::Elasticsearch => "Elasticsearch",
+            DbKind::Cassandra => "Cassandra",
+            DbKind::ScyllaDb => "ScyllaDB",
+            DbKind::TiDb => "TiDB",
+            DbKind::SingleStore => "SingleStore",
+            DbKind::OceanBase => "OceanBase",
+            DbKind::StarRocks => "StarRocks",
+            DbKind::Doris => "Apache Doris",
+            DbKind::CockroachDb => "CockroachDB",
+            DbKind::YugabyteDb => "YugabyteDB",
+            DbKind::TimescaleDb => "TimescaleDB",
+            DbKind::Redshift => "Amazon Redshift",
+            DbKind::Greenplum => "Greenplum",
+            DbKind::Valkey => "Valkey",
+            DbKind::KeyDb => "KeyDB",
+            DbKind::Dragonfly => "Dragonfly",
         }
+    }
+
+    /// The driver family a kind is served by. Wire-compatible products map to
+    /// the driver they speak (TiDB -> MySQL, CockroachDB -> PostgreSQL, ...).
+    pub fn base(self) -> DbKind {
+        match self {
+            DbKind::TiDb | DbKind::SingleStore | DbKind::OceanBase | DbKind::StarRocks | DbKind::Doris => DbKind::MySql,
+            DbKind::CockroachDb | DbKind::YugabyteDb | DbKind::TimescaleDb | DbKind::Redshift | DbKind::Greenplum => {
+                DbKind::PostgreSql
+            }
+            DbKind::Valkey | DbKind::KeyDb | DbKind::Dragonfly => DbKind::Redis,
+            DbKind::Presto => DbKind::Trino,
+            DbKind::Elasticsearch => DbKind::OpenSearch,
+            DbKind::ScyllaDb => DbKind::Cassandra,
+            k => k,
+        }
+    }
+
+    pub fn is_mysql_family(self) -> bool {
+        matches!(self.base(), DbKind::MySql | DbKind::MariaDb)
     }
 
     pub fn default_port(self) -> u16 {
         match self {
-            DbKind::MySql | DbKind::MariaDb => 3306,
-            DbKind::PostgreSql => 5432,
-            DbKind::Sqlite => 0,
-            DbKind::Redis => 6379,
+            DbKind::MySql | DbKind::MariaDb | DbKind::SingleStore => 3306,
+            DbKind::TiDb => 4000,
+            DbKind::OceanBase => 2881,
+            DbKind::StarRocks | DbKind::Doris => 9030,
+            DbKind::PostgreSql | DbKind::TimescaleDb | DbKind::Greenplum => 5432,
+            DbKind::CockroachDb => 26257,
+            DbKind::YugabyteDb => 5433,
+            DbKind::Redshift => 5439,
+            DbKind::Sqlite | DbKind::DuckDb => 0,
+            DbKind::Redis | DbKind::Valkey | DbKind::KeyDb | DbKind::Dragonfly => 6379,
+            DbKind::SqlServer => 1433,
+            DbKind::Oracle => 1521,
+            DbKind::MongoDb => 27017,
+            // REST catalog endpoint
+            DbKind::Iceberg => 8181,
+            DbKind::Vertica => 5433,
+            DbKind::ClickHouse => 8123,
+            DbKind::Trino | DbKind::Presto => 8080,
+            DbKind::OpenSearch | DbKind::Elasticsearch => 9200,
+            DbKind::Cassandra | DbKind::ScyllaDb => 9042,
         }
     }
 
     pub fn default_user(self) -> &'static str {
         match self {
-            DbKind::MySql | DbKind::MariaDb => "root",
-            DbKind::PostgreSql => "postgres",
+            DbKind::MySql | DbKind::MariaDb | DbKind::TiDb | DbKind::SingleStore | DbKind::OceanBase => "root",
+            DbKind::StarRocks | DbKind::Doris => "root",
+            DbKind::PostgreSql | DbKind::TimescaleDb | DbKind::Greenplum => "postgres",
+            DbKind::CockroachDb => "root",
+            DbKind::YugabyteDb => "yugabyte",
+            DbKind::Redshift => "awsuser",
+            DbKind::SqlServer => "sa",
+            DbKind::Oracle => "system",
+            DbKind::Vertica => "dbadmin",
+            DbKind::ClickHouse => "default",
+            DbKind::Trino | DbKind::Presto => "navdb",
+            DbKind::OpenSearch | DbKind::Elasticsearch => "admin",
             _ => "",
         }
     }
 
     pub fn dialect(self) -> Dialect {
-        match self {
+        match self.base() {
             DbKind::MySql | DbKind::MariaDb => Dialect::MySql,
             DbKind::PostgreSql => Dialect::Postgres,
             DbKind::Sqlite | DbKind::Redis => Dialect::Sqlite,
+            DbKind::SqlServer => Dialect::SqlServer,
+            DbKind::Oracle => Dialect::Oracle,
+            _ => Dialect::Generic,
         }
     }
 
+    /// Whether the query editor speaks SQL (or an SQL-like language such as
+    /// CQL). MongoDB, OpenSearch and Redis are document/key stores but the
+    /// first two still accept the SQL subset the data grid generates.
     pub fn is_sql(self) -> bool {
-        !matches!(self, DbKind::Redis)
+        !matches!(self.base(), DbKind::Redis)
     }
 
-    /// Whether objects live in schemas inside a database (PostgreSQL).
+    /// Whether the server is a relational engine with tables, views and
+    /// routines (as opposed to a document, search or key-value store).
+    pub fn is_relational(self) -> bool {
+        !matches!(self.base(), DbKind::Redis | DbKind::MongoDb | DbKind::OpenSearch | DbKind::Cassandra)
+    }
+
+    /// Whether objects live in schemas inside a database.
     pub fn has_schemas(self) -> bool {
-        matches!(self, DbKind::PostgreSql)
+        matches!(
+            self.base(),
+            DbKind::PostgreSql | DbKind::SqlServer | DbKind::DuckDb | DbKind::Vertica | DbKind::Trino | DbKind::Iceberg
+        )
+    }
+
+    /// Schema selected when a database is opened.
+    pub fn default_schema(self) -> Option<&'static str> {
+        match self.base() {
+            DbKind::PostgreSql | DbKind::Vertica => Some("public"),
+            DbKind::SqlServer => Some("dbo"),
+            DbKind::DuckDb => Some("main"),
+            _ => None,
+        }
     }
 
     pub fn is_file_based(self) -> bool {
-        matches!(self, DbKind::Sqlite)
+        matches!(self, DbKind::Sqlite | DbKind::DuckDb)
+    }
+
+    /// Whether the kind supports CREATE USER / GRANT management in the app.
+    pub fn has_users(self) -> bool {
+        matches!(self.base(), DbKind::MySql | DbKind::MariaDb | DbKind::PostgreSql)
+    }
+
+    /// Language of the query editor: `sql`, `js` (MongoDB shell) or `txt`.
+    pub fn query_language(self) -> &'static str {
+        match self.base() {
+            DbKind::Redis => "txt",
+            DbKind::MongoDb => "js",
+            _ => "sql",
+        }
     }
 }
 
@@ -115,6 +312,10 @@ pub struct ConnectionConfig {
     pub read_only: bool,
     /// SQLite databases to ATTACH after connecting: (alias, path).
     pub attached: Vec<(String, String)>,
+    /// Driver specific settings (MongoDB URI, Iceberg catalog, Oracle
+    /// service name, HTTP scheme, ...). Keys are documented per driver.
+    #[serde(default)]
+    pub options: std::collections::BTreeMap<String, String>,
 }
 
 impl Default for ConnectionConfig {
@@ -145,7 +346,12 @@ impl ConnectionConfig {
             encoding: "utf8mb4".into(),
             read_only: false,
             attached: vec![],
+            options: Default::default(),
         }
+    }
+
+    pub fn option(&self, key: &str) -> &str {
+        self.options.get(key).map(|s| s.as_str()).unwrap_or("")
     }
 
     pub fn dialect(&self) -> Dialect {
@@ -159,7 +365,7 @@ impl ConnectionConfig {
             PathBuf::from(&self.database)
                 .file_name()
                 .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_else(|| "SQLite".into())
+                .unwrap_or_else(|| self.kind.label().into())
         } else {
             format!("{}@{}", self.user, self.host)
         }
@@ -167,11 +373,30 @@ impl ConnectionConfig {
 
     /// Database the session starts in when nothing else is selected.
     pub fn default_database(&self) -> String {
-        match self.kind {
+        match self.kind.base() {
             DbKind::PostgreSql => {
-                if self.database.is_empty() { "postgres".into() } else { self.database.clone() }
+                if !self.database.is_empty() {
+                    self.database.clone()
+                } else {
+                    match self.kind {
+                        DbKind::CockroachDb => "defaultdb".into(),
+                        DbKind::YugabyteDb => "yugabyte".into(),
+                        DbKind::Redshift => "dev".into(),
+                        _ => "postgres".into(),
+                    }
+                }
             }
             DbKind::Sqlite => "main".into(),
+            DbKind::DuckDb => {
+                if self.database.is_empty() || self.database == ":memory:" {
+                    "memory".into()
+                } else {
+                    std::path::Path::new(&self.database)
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "memory".into())
+                }
+            }
             DbKind::Redis => {
                 if self.database.is_empty() { "db0".into() } else { self.database.clone() }
             }

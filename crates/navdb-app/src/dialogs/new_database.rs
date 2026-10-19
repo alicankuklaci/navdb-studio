@@ -174,7 +174,7 @@ impl DatabaseDialog {
             }
         }
         // (re)load collations for the selected MySQL charset
-        if matches!(self.kind, DbKind::MySql | DbKind::MariaDb) && self.collations_for != self.charset && !self.collations.is_loading() {
+        if matches!(self.kind.base(), DbKind::MySql | DbKind::MariaDb) && self.collations_for != self.charset && !self.collations.is_loading() {
             self.collations_for = self.charset.clone();
             if self.charset.is_empty() {
                 self.collations = Loadable::Ready(vec![]);
@@ -189,7 +189,7 @@ impl DatabaseDialog {
         let d = self.dialect;
         let name = self.name.trim();
         if name.is_empty() {
-            return Err(if self.kind == DbKind::Sqlite { "Enter an alias name." } else { "Enter a database name." }.into());
+            return Err(if self.kind.base() == DbKind::Sqlite { "Enter an alias name." } else { "Enter a database name." }.into());
         }
         match self.kind {
             DbKind::MySql | DbKind::MariaDb => match &self.existing {
@@ -273,7 +273,7 @@ impl DatabaseDialog {
         if stmts.is_empty() {
             return true;
         }
-        if self.kind == DbKind::Sqlite {
+        if self.kind.base() == DbKind::Sqlite {
             let alias = self.name.trim().to_string();
             let file = self.file.trim().to_string();
             if let Some(c) = st.ws.connections.iter_mut().find(|c| c.id == self.conn) {
@@ -284,7 +284,7 @@ impl DatabaseDialog {
         }
         let msg = if self.existing.is_some() {
             "Database altered"
-        } else if self.kind == DbKind::Sqlite {
+        } else if self.kind.base() == DbKind::Sqlite {
             "Database attached"
         } else {
             "Database created"
@@ -450,7 +450,7 @@ impl Dialog for DatabaseDialog {
             ui.separator();
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let ok_enabled = self.kind != DbKind::Redis && self.session.is_some();
+                    let ok_enabled = self.kind.base() != DbKind::Redis && self.session.is_some();
                     if ui.add_enabled(ok_enabled, egui::Button::new(RichText::new("   OK   ").strong())).clicked() && self.submit(st) {
                         close = true;
                     }

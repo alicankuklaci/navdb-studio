@@ -205,7 +205,7 @@ impl ServerMonitorTab {
         // dedicated connection so periodic refreshes never queue behind the navigator
         let session = st.session(conn).map(|s| s.fork());
         let mut lists: [List; 3] = Default::default();
-        lists[2].key_col = if kind == DbKind::Redis { 1 } else { 0 };
+        lists[2].key_col = if kind.base() == DbKind::Redis { 1 } else { 0 };
         let series = series_defs(kind).into_iter().map(|def| Series { def, points: VecDeque::new(), prev: None }).collect();
         let mut me = Self {
             conn: conn.to_string(),
@@ -395,7 +395,7 @@ impl ServerMonitorTab {
         let sel = self.lists[0].selected_row();
         let id_col = self.process_id_col();
         ui.horizontal(|ui| {
-            let can_kill = sel.is_some() && self.killing.is_none() && self.kind != DbKind::Sqlite;
+            let can_kill = sel.is_some() && self.killing.is_none() && self.kind.base() != DbKind::Sqlite;
             if ui.add_enabled(can_kill, egui::Button::new(format!("{} Kill Process", icon::STOP))).clicked() {
                 if let Some(r) = sel {
                     let id = self.lists[0].view.text(r, id_col);
@@ -489,7 +489,7 @@ impl ServerMonitorTab {
                     }
                     Err(e) => crate::ui::error_text(ui, &e),
                 }
-                if self.kind == DbKind::PostgreSql {
+                if self.kind.base() == DbKind::PostgreSql {
                     ui.label(RichText::new("ALTER SYSTEM needs superuser; some settings only take effect after a server restart.").weak().small());
                 }
             });

@@ -308,6 +308,9 @@ pub fn infer_table(source: &QueryResult, path: ObjPath, d: Dialect) -> TableDef 
                         "text".into()
                     }
                 }
+                Dialect::SqlServer => if !source.rows.is_empty() && all_int { "bigint" } else if all_num { "float" } else if all_date { "date" } else if all_datetime { "datetime2" } else if max_len > 4000 { "nvarchar(max)" } else { "nvarchar(255)" }.to_string(),
+                Dialect::Oracle => if !source.rows.is_empty() && all_num { "NUMBER" } else if all_date || all_datetime { "TIMESTAMP" } else if max_len > 4000 { "CLOB" } else { "VARCHAR2(4000)" }.to_string(),
+                Dialect::Generic => if !source.rows.is_empty() && all_int { "BIGINT" } else if all_num { "DOUBLE" } else if all_date { "DATE" } else if all_datetime { "TIMESTAMP" } else { "VARCHAR" }.to_string(),
             };
             ColumnDef::new(c.name.clone(), ty)
         })

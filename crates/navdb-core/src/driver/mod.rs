@@ -8,10 +8,49 @@ use crate::dialect::Dialect;
 use crate::model::*;
 use crate::value::QueryResult;
 
+pub mod cassandra;
+pub mod clickhouse;
+pub mod duck;
+pub mod mongo;
+pub mod mssql;
 pub mod mysql;
+pub mod oracle;
 pub mod postgres;
 pub mod redis;
+pub mod search;
 pub mod sqlite;
+pub mod trino;
+pub mod vertica;
+
+/// Never constructed; lets placeholder drivers type-check.
+pub enum Unsupported {}
+
+impl Driver for Unsupported {
+    fn kind(&self) -> DbKind {
+        match *self {}
+    }
+    fn server_version(&mut self) -> Result<String> {
+        match *self {}
+    }
+    fn list_databases(&mut self) -> Result<Vec<String>> {
+        match *self {}
+    }
+    fn list_objects(&mut self, _: &Scope, _: ObjectKind) -> Result<Vec<ObjectInfo>> {
+        match *self {}
+    }
+    fn object_kinds(&self) -> Vec<ObjectKind> {
+        match *self {}
+    }
+    fn table_def(&mut self, _: &ObjPath) -> Result<TableDef> {
+        match *self {}
+    }
+    fn object_ddl(&mut self, _: &ObjPath, _: ObjectKind) -> Result<String> {
+        match *self {}
+    }
+    fn execute(&mut self, _: Option<&Scope>, _: &str) -> Result<Vec<QueryResult>> {
+        match *self {}
+    }
+}
 
 pub trait Driver: Send {
     fn kind(&self) -> DbKind;
@@ -119,11 +158,21 @@ pub fn connect(cfg: &ConnectionConfig) -> Result<Box<dyn Driver>> {
     } else {
         None
     };
-    let mut drv: Box<dyn Driver> = match cfg.kind {
+    let mut drv: Box<dyn Driver> = match cfg.kind.base() {
         DbKind::MySql | DbKind::MariaDb => Box::new(mysql::MySqlDriver::connect(&cfg)?),
         DbKind::PostgreSql => Box::new(postgres::PgDriver::connect(&cfg)?),
         DbKind::Sqlite => Box::new(sqlite::SqliteDriver::connect(&cfg)?),
         DbKind::Redis => Box::new(redis::RedisDriver::connect(&cfg)?),
+        DbKind::SqlServer => Box::new(mssql::MsSqlDriver::connect(&cfg)?),
+        DbKind::Oracle => Box::new(oracle::OracleDriver::connect(&cfg)?),
+        DbKind::MongoDb => Box::new(mongo::MongoDriver::connect(&cfg)?),
+        DbKind::DuckDb | DbKind::Iceberg => Box::new(duck::DuckDriver::connect(&cfg)?),
+        DbKind::Vertica => Box::new(vertica::VerticaDriver::connect(&cfg)?),
+        DbKind::ClickHouse => Box::new(clickhouse::ClickHouseDriver::connect(&cfg)?),
+        DbKind::Trino => Box::new(trino::TrinoDriver::connect(&cfg)?),
+        DbKind::OpenSearch => Box::new(search::SearchDriver::connect(&cfg)?),
+        DbKind::Cassandra => Box::new(cassandra::CassandraDriver::connect(&cfg)?),
+        k => bail!("no driver for {}", k.label()),
     };
     if let Some(t) = tunnel {
         drv = Box::new(Tunneled { inner: drv, _tunnel: t });

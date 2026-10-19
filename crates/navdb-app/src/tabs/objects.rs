@@ -73,7 +73,7 @@ impl Tab for ObjectsTab {
                     st.selection = Selection {
                         conn: Some(conn.clone()),
                         scope: Some(navdb_core::Scope::new(d, if cfg.kind.has_schemas() { Some("public".into()) } else { None })),
-                        kind: Some(if cfg.kind == DbKind::Redis { ObjectKind::Key } else { ObjectKind::Table }),
+                        kind: Some(if cfg.kind.base() == DbKind::Redis { ObjectKind::Key } else { ObjectKind::Table }),
                         object: None,
                     };
                 }
@@ -84,7 +84,7 @@ impl Tab for ObjectsTab {
             return;
         }
         let kinds = st.conn(&conn).map(|c| c.object_kinds()).unwrap_or_default();
-        let mut kind = sel.kind.unwrap_or(if cfg.kind == DbKind::Redis { ObjectKind::Key } else { ObjectKind::Table });
+        let mut kind = sel.kind.unwrap_or(if cfg.kind.base() == DbKind::Redis { ObjectKind::Key } else { ObjectKind::Table });
         if !kinds.is_empty() && !kinds.contains(&kind) {
             kind = kinds[0];
         }

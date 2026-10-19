@@ -143,6 +143,13 @@ fn index_sql(d: Dialect, table: &TableDef, idx: &IndexDef) -> String {
                 col_list(d, &idx.columns)
             )
         }
+        _ => format!(
+            "CREATE {}INDEX {} ON {} ({})",
+            if idx.unique { "UNIQUE " } else { "" },
+            d.quote_ident(&idx.name),
+            t,
+            col_list(d, &idx.columns)
+        ),
     }
 }
 
@@ -652,7 +659,7 @@ pub fn drop_trigger(d: Dialect, table: &ObjPath, name: &str) -> String {
     match d {
         Dialect::Postgres => format!("DROP TRIGGER {} ON {}", d.quote_ident(name), d.qualify(table)),
         Dialect::MySql => format!("DROP TRIGGER {}", d.qualify(&ObjPath::new(table.db.clone(), None, name))),
-        Dialect::Sqlite => format!("DROP TRIGGER {}", d.quote_ident(name)),
+        _ => format!("DROP TRIGGER {}", d.quote_ident(name)),
     }
 }
 
@@ -700,6 +707,7 @@ pub fn create_database(d: Dialect, name: &str, charset: &str, collation: &str) -
             s
         }
         Dialect::Sqlite => format!("ATTACH DATABASE {} AS {}", d.string_literal(charset), d.quote_ident(name)),
+        _ => format!("CREATE DATABASE {}", d.quote_ident(name)),
     }
 }
 

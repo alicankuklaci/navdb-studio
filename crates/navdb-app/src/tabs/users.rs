@@ -130,7 +130,7 @@ impl Designer {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             name: old.as_ref().map(|u| u.name.clone()).unwrap_or_default(),
-            host: old.as_ref().map(|u| u.host.clone()).unwrap_or_else(|| if kind == DbKind::PostgreSql { String::new() } else { "%".into() }),
+            host: old.as_ref().map(|u| u.host.clone()).unwrap_or_else(|| if kind.base() == DbKind::PostgreSql { String::new() } else { "%".into() }),
             password: String::new(),
             confirm: String::new(),
             superuser: attr("Superuser").unwrap_or(false),
@@ -160,7 +160,7 @@ impl Designer {
             grants: self
                 .privs
                 .iter()
-                .filter(|r| !r.privs.is_empty() && !(kind == DbKind::PostgreSql && r.db.is_empty()))
+                .filter(|r| !r.privs.is_empty() && !(kind.base() == DbKind::PostgreSql && r.db.is_empty()))
                 .map(|r| (r.privilege_text(), r.object(kind)))
                 .collect(),
         }
@@ -314,7 +314,7 @@ impl UsersTab {
                                 st.record(&self.conn, None, &d.masked(s), true, "OK", 0);
                             }
                             st.toast("User saved");
-                            let host = if self.kind == DbKind::PostgreSql {
+                            let host = if self.kind.base() == DbKind::PostgreSql {
                                 String::new()
                             } else if d.host.trim().is_empty() {
                                 "%".into()
@@ -351,7 +351,7 @@ impl UsersTab {
         ui.horizontal(|ui| {
             ui.label(RichText::new(format!("{} Users - {}", icon::USER, self.conn_name)).strong());
             ui.separator();
-            let supported = !matches!(self.kind, DbKind::Sqlite | DbKind::Redis);
+            let supported = !matches!(self.kind.base(), DbKind::Sqlite | DbKind::Redis);
             if ui.add_enabled(supported, egui::Button::new(format!("{} New User", icon::ADD))).clicked() {
                 self.open_designer(None);
             }
@@ -405,7 +405,7 @@ impl UsersTab {
         };
         let f = self.filter.to_lowercase();
         let rows: Vec<&UserInfo> = list.iter().filter(|u| f.is_empty() || u.display().to_lowercase().contains(&f)).collect();
-        let show_host = self.kind != DbKind::PostgreSql;
+        let show_host = self.kind.base() != DbKind::PostgreSql;
         let attr_names: Vec<String> = list.first().map(|u| u.attributes.iter().map(|(k, _)| k.clone()).collect()).unwrap_or_default();
         let mut clicked: Option<UserInfo> = None;
         let mut dbl: Option<UserInfo> = None;
@@ -491,7 +491,7 @@ impl UsersTab {
             return;
         }
         let Some(s) = &self.session else { return };
-        let scope = if self.kind == DbKind::PostgreSql { Scope::new(self.pg_db.clone(), Some(db.to_string())) } else { Scope::new(db, None) };
+        let scope = if self.kind.base() == DbKind::PostgreSql { Scope::new(self.pg_db.clone(), Some(db.to_string())) } else { Scope::new(db, None) };
         let p = s.run(move |d| Ok(d.list_objects(&scope, ObjectKind::Table)?.into_iter().map(|o| o.name).collect()));
         self.tables.insert(db.to_string(), Loadable::Loading(p));
     }
@@ -563,7 +563,7 @@ impl UsersTab {
                         ui.label("User name:");
                         ui.add(egui::TextEdit::singleline(&mut d.name).desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
                         ui.end_row();
-                        if kind != DbKind::PostgreSql {
+                        if kind.base() != DbKind::PostgreSql {
                             ui.label("Host:");
                             ui.add(egui::TextEdit::singleline(&mut d.host).hint_text("% = any host").desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
                             ui.end_row();
@@ -580,7 +580,7 @@ impl UsersTab {
                         ui.end_row();
                     });
                     ui.add_space(8.0);
-                    if kind == DbKind::PostgreSql {
+                    if kind.base() == DbKind::PostgreSql {
                         ui.label(RichText::new("Role attributes").strong());
                         ui.checkbox(&mut d.superuser, "Superuser");
                         ui.checkbox(&mut d.can_login, "Can login");
@@ -594,7 +594,7 @@ impl UsersTab {
                     ui.horizontal(|ui| {
                         if ui.button(format!("{} Add Privilege", icon::ADD)).clicked() {
                             d.privs.push(PrivRow {
-                                db: if kind == DbKind::PostgreSql { "public".into() } else { objects.first().cloned().unwrap_or_else(|| "*".into()) },
+                                db: if kind.base() == DbKind::PostgreSql { "public".into() } else { objects.first().cloned().unwrap_or_else(|| "*".into()) },
                                 table: "*".into(),
                                 target: PgTarget::AllTables,
                                 privs: vec!["SELECT".into()],
@@ -605,7 +605,7 @@ impl UsersTab {
                         }
                     });
                     ui.label(
-                        RichText::new(if kind == DbKind::PostgreSql {
+                        RichText::new(if kind.base() == DbKind::PostgreSql {
                             format!("Privileges are granted in database \"{}\". Existing grants are not revoked.", self.pg_db)
                         } else {
                             "New privileges are added with GRANT; existing grants are not revoked.".to_string()
@@ -619,11 +619,11 @@ impl UsersTab {
                         egui::Frame::group(ui.style()).show(ui, |ui| {
                             ui.set_width(ui.available_width());
                             ui.horizontal(|ui| {
-                                let db_label = if kind == DbKind::PostgreSql { "Schema" } else { "Database" };
+                                let db_label = if kind.base() == DbKind::PostgreSql { "Schema" } else { "Database" };
                                 ui.label(db_label);
                                 let shown = if r.db == "*" { "* (all databases)".to_string() } else { r.db.clone() };
                                 egui::ComboBox::from_id_salt(format!("ud-db-{}-{}", d.id, i)).selected_text(shown).width(150.0).show_ui(ui, |ui| {
-                                    if kind != DbKind::PostgreSql && ui.selectable_label(r.db == "*", "* (all databases)").clicked() {
+                                    if kind.base() != DbKind::PostgreSql && ui.selectable_label(r.db == "*", "* (all databases)").clicked() {
                                         r.db = "*".into();
                                         r.table = "*".into();
                                     }
@@ -634,7 +634,7 @@ impl UsersTab {
                                         }
                                     }
                                 });
-                                if kind == DbKind::PostgreSql {
+                                if kind.base() == DbKind::PostgreSql {
                                     egui::ComboBox::from_id_salt(format!("ud-tg-{}-{}", d.id, i)).selected_text(r.target.label()).width(150.0).show_ui(ui, |ui| {
                                         for t in [PgTarget::Schema, PgTarget::AllTables, PgTarget::Table] {
                                             if ui.selectable_value(&mut r.target, t, t.label()).changed() {
@@ -647,13 +647,13 @@ impl UsersTab {
                                         }
                                     });
                                 }
-                                let table_enabled = if kind == DbKind::PostgreSql { r.target == PgTarget::Table } else { r.db != "*" };
+                                let table_enabled = if kind.base() == DbKind::PostgreSql { r.target == PgTarget::Table } else { r.db != "*" };
                                 if table_enabled {
                                     ui.label("Table");
                                     let tables = self.tables.get(&r.db);
                                     let shown = if r.table == "*" { "* (all tables)".to_string() } else if r.table.is_empty() { "Select…".into() } else { r.table.clone() };
                                     egui::ComboBox::from_id_salt(format!("ud-tb-{}-{}", d.id, i)).selected_text(shown).width(150.0).height(300.0).show_ui(ui, |ui| {
-                                        if kind != DbKind::PostgreSql && ui.selectable_label(r.table == "*", "* (all tables)").clicked() {
+                                        if kind.base() != DbKind::PostgreSql && ui.selectable_label(r.table == "*", "* (all tables)").clicked() {
                                             r.table = "*".into();
                                         }
                                         match tables {
@@ -766,7 +766,7 @@ impl Tab for UsersTab {
     fn ui(&mut self, ui: &mut egui::Ui, st: &mut AppState) {
         self.poll(st);
         self.toolbar(ui, st);
-        if matches!(self.kind, DbKind::Sqlite | DbKind::Redis) {
+        if matches!(self.kind.base(), DbKind::Sqlite | DbKind::Redis) {
             ui.add_space(12.0);
             ui.label(RichText::new(format!("User management is not available for {} connections.", self.kind.label())).weak());
             return;

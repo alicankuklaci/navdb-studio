@@ -101,7 +101,7 @@ impl ConnectionDialog {
                     }
                 }
                 ui.end_row();
-                ui.label(if self.cfg.kind == DbKind::Redis { "Username (ACL):" } else { "User Name:" });
+                ui.label(if self.cfg.kind.base() == DbKind::Redis { "Username (ACL):" } else { "User Name:" });
                 ui.add(egui::TextEdit::singleline(&mut self.cfg.user).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)));
                 ui.end_row();
                 ui.label("Password:");
@@ -133,7 +133,7 @@ impl ConnectionDialog {
             ui.label("Keepalive interval (s):");
             ui.add(egui::DragValue::new(&mut self.cfg.keepalive_secs).range(0..=3600));
             ui.end_row();
-            if matches!(self.cfg.kind, DbKind::MySql | DbKind::MariaDb) {
+            if matches!(self.cfg.kind.base(), DbKind::MySql | DbKind::MariaDb) {
                 ui.label("Encoding:");
                 egui::ComboBox::from_id_salt("enc").selected_text(&self.cfg.encoding).show_ui(ui, |ui| {
                     for e in ["utf8mb4", "utf8", "latin1", "ascii", "binary", "cp1251", "gbk"] {
@@ -160,7 +160,7 @@ impl ConnectionDialog {
             });
             ui.end_row();
         });
-        if self.cfg.kind == DbKind::Sqlite {
+        if self.cfg.kind.base() == DbKind::Sqlite {
             ui.separator();
             ui.label(RichText::new("Attached databases").strong());
             let mut remove = None;

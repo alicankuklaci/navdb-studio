@@ -63,7 +63,7 @@ impl QueryTab {
             .and_then(|id| st.ws.queries.iter().find(|q| &q.id == id).map(|q| q.name.clone()))
             .unwrap_or_else(|| "Untitled".into());
         let (dialect, kind) = conn.as_ref().and_then(|c| st.config(c)).map(|c| (c.dialect(), c.kind)).unwrap_or((Dialect::MySql, DbKind::MySql));
-        if kind == DbKind::Redis {
+        if kind.base() == DbKind::Redis {
             editor.language = "txt".into();
         }
         Self {
@@ -100,7 +100,7 @@ impl QueryTab {
             if let Some(c) = st.config(&conn) {
                 self.dialect = c.dialect();
                 self.kind = c.kind;
-                self.editor.language = if c.kind == DbKind::Redis { "txt".into() } else { "sql".into() };
+                self.editor.language = if c.kind.base() == DbKind::Redis { "txt".into() } else { "sql".into() };
             }
         }
         self.session.clone()
@@ -117,7 +117,7 @@ impl QueryTab {
         let scope = self.scope.clone();
         let stop_on_error = st.prefs().stop_on_error;
         let dialect = self.dialect;
-        let is_redis = self.kind == DbKind::Redis;
+        let is_redis = self.kind.base() == DbKind::Redis;
         let text = sql.clone();
         let pending = session.run(move |d| {
             let stmts: Vec<String> = if is_redis {
@@ -421,7 +421,7 @@ impl Tab for QueryTab {
                     self.messages = vec![("Query stopped: the session was closed.".into(), true)];
                 }
             }
-            if self.kind != DbKind::Redis && ui.button(format!("{} Explain", icon::EXPLAIN)).clicked() {
+            if self.kind.base() != DbKind::Redis && ui.button(format!("{} Explain", icon::EXPLAIN)).clicked() {
                 self.explain(st);
             }
             ui.separator();

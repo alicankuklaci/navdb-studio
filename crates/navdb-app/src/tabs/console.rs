@@ -121,7 +121,7 @@ impl ConsoleTab {
                 if continuation {
                     "    -> ".into()
                 } else {
-                    let name = if self.kind == DbKind::MariaDb { "MariaDB" } else { "mysql" };
+                    let name = if self.kind.base() == DbKind::MariaDb { "MariaDB" } else { "mysql" };
                     format!("{} [{}]> ", name, if db.is_empty() { "(none)" } else { &db })
                 }
             }
@@ -173,9 +173,9 @@ impl ConsoleTab {
             }
             if self.is_sql() {
                 let word = |p: &str| lower.strip_prefix(p).map(|r| r.trim().to_string());
-                let target = if matches!(self.kind, DbKind::MySql | DbKind::MariaDb) {
+                let target = if matches!(self.kind.base(), DbKind::MySql | DbKind::MariaDb) {
                     word("use ").or_else(|| word("\\u "))
-                } else if self.kind == DbKind::PostgreSql {
+                } else if self.kind.base() == DbKind::PostgreSql {
                     word("\\c ").or_else(|| word("\\connect "))
                 } else {
                     None
@@ -272,7 +272,7 @@ impl ConsoleTab {
                             self.info(r.sql.clone());
                         }
                     } else if let Some(sc) = new_scope {
-                        let msg = if self.kind == DbKind::PostgreSql {
+                        let msg = if self.kind.base() == DbKind::PostgreSql {
                             format!("You are now connected to database \"{}\".", sc.db)
                         } else {
                             "Database changed".to_string()
@@ -306,7 +306,7 @@ impl ConsoleTab {
     }
 
     fn format_result(&self, r: &QueryResult, secs: f64) -> String {
-        if self.kind == DbKind::Redis {
+        if self.kind.base() == DbKind::Redis {
             return format_redis(r);
         }
         if !r.is_query {

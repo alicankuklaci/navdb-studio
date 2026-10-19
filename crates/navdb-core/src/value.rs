@@ -64,7 +64,7 @@ impl Value {
         match self {
             Value::Null => "NULL".into(),
             Value::Bool(b) => match d {
-                Dialect::Postgres => if *b { "TRUE" } else { "FALSE" }.into(),
+                Dialect::Postgres | Dialect::Generic => if *b { "TRUE" } else { "FALSE" }.into(),
                 _ => if *b { "1" } else { "0" }.into(),
             },
             Value::Int(v) => v.to_string(),
@@ -152,6 +152,14 @@ impl fmt::Display for Value {
 
 pub fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{:02X}", x)).collect()
+}
+
+/// Inverse of [`hex`]; `None` for odd length or non-hex input.
+pub fn unhex(s: &str) -> Option<Vec<u8>> {
+    if s.len() % 2 != 0 {
+        return None;
+    }
+    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(s.get(i..i + 2)?, 16).ok()).collect()
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
