@@ -453,7 +453,7 @@ impl TableDataTab {
             self.filters.remove(i);
         }
         ui.horizontal(|ui| {
-            if ui.button("＋ Add Condition").clicked() {
+            if ui.button("➕ Add Condition").clicked() {
                 self.filters.push(FilterRule::new(cols.first().cloned().unwrap_or_default()));
             }
             if ui.button("Apply Filter").clicked() {
@@ -473,7 +473,7 @@ impl TableDataTab {
 
 impl Tab for TableDataTab {
     fn title(&self) -> String {
-        format!("{} {} @{}", self.kind.icon(), self.path.name, self.path.db)
+        format!("{} {} @{}", crate::ui::style::object_icon(self.kind), self.path.name, self.path.db)
     }
 
     fn key(&self) -> String {
@@ -531,7 +531,7 @@ impl Tab for TableDataTab {
         // toolbar
         ui.horizontal(|ui| {
             let editable = !self.read_only;
-            if ui.add_enabled(editable, egui::Button::new("＋")).on_hover_text("Add record").clicked() {
+            if ui.add_enabled(editable, egui::Button::new("➕")).on_hover_text("Add record").clicked() {
                 self.add_row();
             }
             if ui.add_enabled(editable, egui::Button::new("−")).on_hover_text("Delete selected records").clicked() {
@@ -556,7 +556,7 @@ impl Tab for TableDataTab {
                 self.reload(false);
             }
             ui.separator();
-            ui.selectable_value(&mut self.mode, ViewMode::Grid, "▦ Grid");
+            ui.selectable_value(&mut self.mode, ViewMode::Grid, "⊞ Grid");
             ui.selectable_value(&mut self.mode, ViewMode::Form, "☰ Form");
             ui.separator();
             if self.kind == ObjectKind::Table && ui.button(format!("{} Import", icon::IMPORT)).clicked() {

@@ -404,7 +404,7 @@ impl Tab for QueryTab {
                 let sql = if sel.trim().is_empty() { self.editor.text.clone() } else { sel };
                 self.run(st, sql);
             }
-            if ui.add_enabled(!busy, egui::Button::new("▶︎ Current")).on_hover_text("Run current statement (⌘↵)").clicked() {
+            if ui.add_enabled(!busy, egui::Button::new("▶ Current")).on_hover_text("Run current statement (⌘↵)").clicked() {
                 if let Some(s) = sqlutil::statement_at(&self.editor.text, self.editor.cursor, self.dialect) {
                     self.run(st, s);
                 }
@@ -458,7 +458,7 @@ impl Tab for QueryTab {
             if ui.button(format!("{} Save", icon::SAVE)).on_hover_text("Save query (⌘S)").clicked() {
                 self.save(st, false);
             }
-            ui.menu_button("⋯", |ui| {
+            ui.menu_button("☰", |ui| {
                 if ui.button("Save As…").clicked() {
                     self.save(st, true);
                     ui.close_menu();

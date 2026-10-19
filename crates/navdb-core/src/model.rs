@@ -112,14 +112,14 @@ impl ObjectKind {
 
     pub fn icon(self) -> &'static str {
         match self {
-            ObjectKind::Table => "▦",
-            ObjectKind::View => "◫",
-            ObjectKind::MaterializedView => "◩",
+            ObjectKind::Table => "⊞",
+            ObjectKind::View => "👁",
+            ObjectKind::MaterializedView => "🗐",
             ObjectKind::Function | ObjectKind::Procedure => "ƒ",
             ObjectKind::Trigger => "⚡",
             ObjectKind::Event => "⏱",
             ObjectKind::Sequence => "#",
-            ObjectKind::Index => "⚷",
+            ObjectKind::Index => "🔑",
             ObjectKind::Key => "🔑",
         }
     }

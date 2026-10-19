@@ -680,7 +680,7 @@ pub(crate) mod common {
     pub fn dialect_badge(ui: &mut Ui, from: Dialect, to: Dialect) {
         if from != to {
             ui.label(
-                RichText::new(format!("ⓘ {:?} → {:?}: column types will be converted between dialects", from, to))
+                RichText::new(format!("ℹ {:?} → {:?}: column types will be converted between dialects", from, to))
                     .color(Color32::from_rgb(90, 140, 220)),
             );
         }

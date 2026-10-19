@@ -30,6 +30,7 @@ impl NavApp {
         let notify: navdb_core::session::Notify = Arc::new(move || ctx.request_repaint());
         let mut st = AppState::new(notify);
         egui_extras::install_image_loaders(&cc.egui_ctx);
+        ui::style::install_fonts(&cc.egui_ctx);
         let mut tabs: Vec<Box<dyn Tab>> = vec![Box::new(ObjectsTab::new())];
         // scheduled automation jobs run from the Automation tab's tick(), so keep it open
         if st.ws.automation.iter().any(|j| j.interval_minutes > 0) {
@@ -163,7 +164,7 @@ impl NavApp {
             ui.menu_button("File", |ui| {
                 ui.menu_button("New Connection", |ui| {
                     for k in DbKind::ALL {
-                        if ui.button(format!("{} {}…", ui::style::kind_icon(k), k.label())).clicked() {
+                        if ui.add(egui::Button::image_and_text(ui::style::kind_logo(k, 16.0), format!("{}…", k.label()))).clicked() {
                             cmd::new_connection(&mut self.st, k);
                             ui.close_menu();
                         }
@@ -325,7 +326,7 @@ impl NavApp {
             egui::popup_below_widget(ui, popup_id, &conn_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
                 ui.set_min_width(160.0);
                 for k in DbKind::ALL {
-                    if ui.button(format!("{} {}…", ui::style::kind_icon(k), k.label())).clicked() {
+                    if ui.add(egui::Button::image_and_text(ui::style::kind_logo(k, 16.0), format!("{}…", k.label()))).clicked() {
                         cmd::new_connection(&mut self.st, k);
                     }
                 }
@@ -362,7 +363,7 @@ impl NavApp {
             egui::popup_below_widget(ui, others_id, &others, egui::PopupCloseBehavior::CloseOnClick, |ui| {
                 ui.set_min_width(170.0);
                 for k in [ObjectKind::Procedure, ObjectKind::Trigger, ObjectKind::Sequence, ObjectKind::MaterializedView, ObjectKind::Index, ObjectKind::Key] {
-                    if ui.button(format!("{} {}", k.icon(), k.label())).clicked() {
+                    if ui.button(format!("{} {}", crate::ui::style::object_icon(k), k.label())).clicked() {
                         self.show_kind(k);
                     }
                 }
@@ -423,7 +424,7 @@ impl NavApp {
             ui.horizontal(|ui| {
                 let mut close = None;
                 for (i, t) in self.tabs.iter().enumerate() {
-                    let title = if t.dirty() { format!("● {}", t.title()) } else { t.title() };
+                    let title = if t.dirty() { format!("■ {}", t.title()) } else { t.title() };
                     let selected = i == self.active;
                     let frame = egui::Frame::new()
                         .fill(if selected { ui.visuals().selection.bg_fill } else { ui.visuals().faint_bg_color })
@@ -449,7 +450,7 @@ impl NavApp {
                                     ui.close_menu();
                                 }
                             });
-                            if i != 0 && ui.add(egui::Label::new(RichText::new("✕").size(11.0).weak()).sense(egui::Sense::click())).clicked() {
+                            if i != 0 && ui.add(egui::Label::new(RichText::new("×").size(11.0).weak()).sense(egui::Sense::click())).clicked() {
                                 close = Some(i);
                             }
                         });

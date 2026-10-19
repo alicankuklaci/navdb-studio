@@ -171,7 +171,7 @@ impl StructureSyncDialog {
         let check = self.can_compare(st);
         ui.horizontal(|ui| {
             let busy = self.compare.is_some();
-            if ui.add_enabled(check.is_ok() && !busy, egui::Button::new(RichText::new("⇄ Compare").strong())).clicked() {
+            if ui.add_enabled(check.is_ok() && !busy, egui::Button::new(RichText::new("🔁 Compare").strong())).clicked() {
                 self.start_compare(st);
             }
             if busy {
@@ -338,7 +338,7 @@ impl StructureSyncDialog {
             if self.deploy.running() && ui.button("■ Cancel").clicked() {
                 self.deploy.cancel();
             }
-            if self.deploy.finished() && ui.button("⇄ Compare Again").clicked() {
+            if self.deploy.finished() && ui.button("🔁 Compare Again").clicked() {
                 self.start_compare(st);
                 self.page = Page::Options;
             }
@@ -387,10 +387,10 @@ fn short_label(s: DiffStatus) -> &'static str {
 
 fn status_icon(s: DiffStatus) -> &'static str {
     match s {
-        DiffStatus::OnlyInSource => "＋",
-        DiffStatus::Different => "✎",
-        DiffStatus::OnlyInTarget => "－",
-        DiffStatus::Identical => "＝",
+        DiffStatus::OnlyInSource => "➕",
+        DiffStatus::Different => "✏",
+        DiffStatus::OnlyInTarget => "-",
+        DiffStatus::Identical => "=",
     }
 }
 

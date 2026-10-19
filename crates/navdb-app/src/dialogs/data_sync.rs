@@ -306,7 +306,7 @@ impl DataSyncDialog {
                     ui.end_row();
                     for t in m.tables.iter_mut() {
                         let ok = t.problem.is_none();
-                        ui.add_enabled(ok, egui::Checkbox::new(&mut t.checked, format!("▦ {}", t.name)));
+                        ui.add_enabled(ok, egui::Checkbox::new(&mut t.checked, format!("⊞ {}", t.name)));
                         ui.label(RichText::new(t.key.join(", ")).monospace());
                         match &t.problem {
                             None => ui.label(RichText::new("✔ ready").color(egui::Color32::from_rgb(60, 170, 90))),
@@ -330,7 +330,7 @@ impl DataSyncDialog {
         let n_checked = self.mapping.as_ref().map(|m| m.tables.iter().filter(|t| t.checked && t.problem.is_none()).count()).unwrap_or(0);
         ui.horizontal(|ui| {
             let busy = self.compare_job.is_some();
-            if ui.add_enabled(n_checked > 0 && !busy, egui::Button::new(RichText::new(format!("⇄ Compare {} table(s)", n_checked)).strong())).clicked() {
+            if ui.add_enabled(n_checked > 0 && !busy, egui::Button::new(RichText::new(format!("🔁 Compare {} table(s)", n_checked)).strong())).clicked() {
                 self.start_compare(st);
             }
             if busy {
@@ -478,7 +478,7 @@ impl DataSyncDialog {
             if self.deploy.running() && ui.button("■ Cancel").clicked() {
                 self.deploy.cancel();
             }
-            if self.deploy.finished() && !self.deploy.running() && ui.button("⇄ Compare Again").clicked() {
+            if self.deploy.finished() && !self.deploy.running() && ui.button("🔁 Compare Again").clicked() {
                 self.start_compare(st);
                 self.page = Page::Mapping;
             }

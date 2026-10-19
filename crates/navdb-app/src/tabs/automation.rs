@@ -323,7 +323,7 @@ impl AutomationTab {
                         ));
                     }
                 }
-                if ui.add_enabled(sel.is_some(), egui::Button::new("⧉").small()).on_hover_text("Duplicate job").clicked() {
+                if ui.add_enabled(sel.is_some(), egui::Button::new("📋").small()).on_hover_text("Duplicate job").clicked() {
                     if let Some(j) = sel.and_then(|id| st.ws.automation.iter().find(|j| j.id == id).cloned()) {
                         let mut c = j;
                         c.id = uuid::Uuid::new_v4().to_string();

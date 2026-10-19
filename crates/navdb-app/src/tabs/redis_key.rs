@@ -401,7 +401,7 @@ impl RedisKeyTab {
                 }
             } else {
                 ui.label(RichText::new(&self.key).monospace().strong().size(14.0));
-                if ui.small_button("✎").on_hover_text("Rename key").clicked() {
+                if ui.small_button("✏").on_hover_text("Rename key").clicked() {
                     self.rename_buf = Some(self.key.clone());
                 }
                 if ui.small_button("🗐").on_hover_text("Copy key name").clicked() {
@@ -494,7 +494,7 @@ impl RedisKeyTab {
                 ui.label(RichText::new("✔ valid JSON").color(Color32::from_rgb(60, 160, 90)).small());
             }
             if self.text_dirty {
-                ui.label(RichText::new("● modified").color(Color32::from_rgb(220, 160, 40)).small());
+                ui.label(RichText::new("■ modified").color(Color32::from_rgb(220, 160, 40)).small());
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(RichText::new(format!("{} chars", self.text.chars().count())).weak());
@@ -883,7 +883,7 @@ impl RedisKeyTab {
 }
 
 fn one_line(s: &str) -> String {
-    let t: String = s.chars().take(300).map(|c| if c == '\n' || c == '\r' { '⏎' } else { c }).collect();
+    let t: String = s.chars().take(300).map(|c| if c == '\n' || c == '\r' { '¶' } else { c }).collect();
     t
 }
 

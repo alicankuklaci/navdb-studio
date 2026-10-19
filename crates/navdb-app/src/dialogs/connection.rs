@@ -176,7 +176,7 @@ impl ConnectionDialog {
             if let Some(i) = remove {
                 self.cfg.attached.remove(i);
             }
-            if ui.button("＋ Attach Database…").clicked() {
+            if ui.button("➕ Attach Database…").clicked() {
                 if let Some(p) = rfd::FileDialog::new().pick_file() {
                     let alias = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "db2".into());
                     self.cfg.attached.push((alias, p.display().to_string()));

@@ -559,11 +559,11 @@ impl FindInDbTab {
         egui::ScrollArea::vertical().id_salt(format!("find-res-{}", self.id)).auto_shrink([false, false]).show(ui, |ui| {
             for (gi, g) in groups.iter().enumerate() {
                 let title = if let Some(e) = &g.error {
-                    RichText::new(format!("{} {}  -  error: {}", g.kind.icon(), g.name, e)).color(ui.visuals().error_fg_color)
+                    RichText::new(format!("{} {}  -  error: {}", crate::ui::style::object_icon(g.kind), g.name, e)).color(ui.visuals().error_fg_color)
                 } else {
                     RichText::new(format!(
                         "{} {}  ({} match{}{})",
-                        g.kind.icon(),
+                        crate::ui::style::object_icon(g.kind),
                         g.name,
                         g.hits.len(),
                         if g.hits.len() == 1 { "" } else { "es" },

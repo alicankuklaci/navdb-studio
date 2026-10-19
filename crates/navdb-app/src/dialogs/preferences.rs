@@ -21,7 +21,7 @@ impl Page {
         match self {
             Page::General => "⚙  General",
             Page::Editor => "📝  Editor",
-            Page::Grid => "▦  Grid",
+            Page::Grid => "⊞  Grid",
             Page::Query => "▶  Query",
         }
     }

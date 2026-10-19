@@ -701,7 +701,7 @@ impl ErModelTab {
             if ui.selectable_label(self.layout == LayoutKind::Force, "✳ Force").on_hover_text("Force-directed layout").clicked() {
                 self.apply_layout(LayoutKind::Force);
             }
-            if ui.selectable_label(self.layout == LayoutKind::Grid, "▦ Grid").clicked() {
+            if ui.selectable_label(self.layout == LayoutKind::Grid, "⊞ Grid").clicked() {
                 self.apply_layout(LayoutKind::Grid);
             }
             ui.separator();

@@ -55,6 +55,22 @@ pub fn show(ui: &mut Ui, st: &mut AppState, ts: &mut TreeState) {
     });
 }
 
+/// Ask a collapsing node to open (Some(true)), close or toggle (None) on the next frame.
+/// Writing the state directly would be overwritten when the header stores its own copy.
+fn request_open(ctx: &egui::Context, id: egui::Id, open: Option<bool>) {
+    ctx.data_mut(|d| d.insert_temp(id.with("open-req"), open));
+}
+
+fn load_state(ui: &Ui, id: egui::Id, default_open: bool) -> CollapsingState {
+    let mut cs = CollapsingState::load_with_default_open(ui.ctx(), id, default_open);
+    if let Some(req) = ui.ctx().data_mut(|d| d.remove_temp::<Option<bool>>(id.with("open-req"))) {
+        let v = req.unwrap_or(!cs.is_open());
+        cs.set_open(v);
+        ui.ctx().request_repaint();
+    }
+    cs
+}
+
 fn matches(filter: &str, name: &str) -> bool {
     filter.is_empty() || name.to_lowercase().contains(&filter.to_lowercase())
 }
@@ -62,16 +78,17 @@ fn matches(filter: &str, name: &str) -> bool {
 fn connection_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionConfig) {
     let id = ui.make_persistent_id(("conn", &c.id));
     let is_open = st.conns.contains_key(&c.id);
-    let mut cs = CollapsingState::load_with_default_open(ui.ctx(), id, false);
-    if !is_open && cs.is_open() {
+    let mut cs = load_state(ui, id, false);
+    if !is_open && cs.is_open() && !st.actions.iter().any(|a| matches!(a, Action::OpenConnection(x) if x == &c.id)) {
         cs.set_open(false);
     }
     let selected = st.selection.conn.as_deref() == Some(&c.id) && st.selection.scope.is_none();
     let header = cs.show_header(ui, |ui| {
         let color = c.color.map(|[r, g, b]| egui::Color32::from_rgb(r, g, b)).unwrap_or_else(|| style::kind_color(c.kind));
-        let dot = if is_open { "●" } else { "○" };
+        let dot = if is_open { "■" } else { "○" };
         ui.label(RichText::new(dot).color(color).small());
-        let text = RichText::new(format!("{} {}", style::kind_icon(c.kind), c.display_name()));
+        ui.add(style::kind_logo(c.kind, 15.0));
+        let text = RichText::new(c.display_name());
         let text = if is_open { text.strong() } else { text };
         let resp = ui.selectable_label(selected, text);
         let resp = if let Some(err) = st.conn(&c.id).and_then(|o| o.databases.error().map(|s| s.to_string())) {
@@ -88,9 +105,7 @@ fn connection_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &Connectio
                 st.push(Action::CloseConnection(c.id.clone()));
             } else {
                 st.push(Action::OpenConnection(c.id.clone()));
-                let mut s = CollapsingState::load_with_default_open(ui.ctx(), id, false);
-                s.set_open(true);
-                s.store(ui.ctx());
+                request_open(ui.ctx(), id, Some(true));
             }
         }
         resp.context_menu(|ui| connection_menu(ui, st, c, is_open, id));
@@ -124,9 +139,7 @@ fn connection_menu(ui: &mut Ui, st: &mut AppState, c: &ConnectionConfig, is_open
         }
     } else if ui.button("Open Connection").clicked() {
         st.push(Action::OpenConnection(c.id.clone()));
-        let mut s = CollapsingState::load_with_default_open(ui.ctx(), node_id, false);
-        s.set_open(true);
-        s.store(ui.ctx());
+        request_open(ui.ctx(), node_id, Some(true));
         ui.close_menu();
     }
     if ui.button("Edit Connection…").clicked() {
@@ -235,16 +248,14 @@ fn database_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionC
     let scope = Scope::new(db, None);
     let selected = st.selection.conn.as_deref() == Some(&c.id) && st.selection.scope.as_ref() == Some(&scope) && st.selection.kind.is_none();
     let is_default = c.kind == DbKind::Sqlite || c.default_database() == db;
-    let cs = CollapsingState::load_with_default_open(ui.ctx(), id, false);
+    let cs = load_state(ui, id, false);
     let header = cs.show_header(ui, |ui| {
         let resp = ui.selectable_label(selected, format!("{} {}", icon::DATABASE, db));
         if resp.clicked() {
             st.selection = Selection { conn: Some(c.id.clone()), scope: Some(scope.clone()), kind: Some(ObjectKind::Table), object: None };
         }
         if resp.double_clicked() {
-            let mut s = CollapsingState::load_with_default_open(ui.ctx(), id, false);
-            s.toggle(ui);
-            s.store(ui.ctx());
+            request_open(ui.ctx(), id, None);
         }
         resp.context_menu(|ui| database_menu(ui, st, c, db));
         let _ = is_default;
@@ -414,7 +425,7 @@ fn kind_groups(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionCon
                 .and_then(|l| l.ready())
                 .map(|v| format!(" ({})", v.len()))
                 .unwrap_or_default();
-            let r = ui.selectable_label(sel, format!("{} {}{}", kind.icon(), kind.label(), count));
+            let r = ui.selectable_label(sel, format!("{} {}{}", crate::ui::style::object_icon(kind), kind.label(), count));
             if r.clicked() {
                 st.selection = Selection { conn: Some(c.id.clone()), scope: Some(scope.clone()), kind: Some(kind), object: None };
             }
@@ -510,7 +521,7 @@ fn object_leaf(ui: &mut Ui, st: &mut AppState, c: &ConnectionConfig, scope: &Sco
     let sel = st.selection.conn.as_deref() == Some(&c.id)
         && st.selection.scope.as_ref() == Some(scope)
         && st.selection.object.as_deref() == Some(name);
-    let r = ui.selectable_label(sel, format!("   {} {}", kind.icon(), name));
+    let r = ui.selectable_label(sel, format!("   {} {}", crate::ui::style::object_icon(kind), name));
     if r.clicked() {
         st.selection = Selection { conn: Some(c.id.clone()), scope: Some(scope.clone()), kind: Some(kind), object: Some(name.to_string()) };
     }

@@ -533,7 +533,7 @@ impl Driver for PgDriver {
         Ok(ServerSnapshot {
             processes: self.query(
                 None,
-                "SELECT pid, usename, datname, COALESCE(client_addr::text, 'local'), state, backend_start, query_start, wait_event, query \
+                "SELECT pid, usename, datname, COALESCE(client_addr::text, 'local') AS client_addr, state, backend_start, query_start, wait_event, query \
                  FROM pg_stat_activity WHERE pid IS NOT NULL ORDER BY pid",
             )?,
             variables: self.query(None, "SELECT name, setting, unit, short_desc FROM pg_settings ORDER BY name")?,

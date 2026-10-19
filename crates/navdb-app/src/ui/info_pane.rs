@@ -16,7 +16,7 @@ pub struct InfoPane {
 impl InfoPane {
     pub fn ui(&mut self, ui: &mut Ui, st: &mut AppState) {
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.show_ddl, false, "ⓘ General");
+            ui.selectable_value(&mut self.show_ddl, false, "ℹ General");
             ui.selectable_value(&mut self.show_ddl, true, "DDL");
         });
         ui.separator();
@@ -79,7 +79,7 @@ impl InfoPane {
                 .and_then(|c| c.objects(&scope, kind))
                 .and_then(|l| l.ready())
                 .and_then(|v| v.iter().find(|o| o.name == name).cloned());
-            ui.label(RichText::new(format!("{} {}", kind.icon(), name)).heading());
+            ui.label(RichText::new(format!("{} {}", crate::ui::style::object_icon(kind), name)).heading());
             ui.label(RichText::new(kind.singular()).weak());
             ui.add_space(6.0);
             if let Some(o) = info {

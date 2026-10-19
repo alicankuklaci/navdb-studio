@@ -275,7 +275,7 @@ impl DataGenDialog {
                         }
                     }
                     let rows = self.tables.get(&t.name).filter(|_| on).map(|g| format!("  {}", g.rows)).unwrap_or_default();
-                    let label = RichText::new(format!("▦ {}{}", t.name, rows));
+                    let label = RichText::new(format!("⊞ {}{}", t.name, rows));
                     if ui.selectable_label(self.current.as_deref() == Some(&t.name), label).clicked() {
                         self.current = Some(t.name.clone());
                         to_load.push(t.name.clone());
@@ -312,7 +312,7 @@ impl DataGenDialog {
             Loadable::Ready(_) => {}
         }
         ui.horizontal(|ui| {
-            ui.label(RichText::new(format!("▦ {}", name)).strong());
+            ui.label(RichText::new(format!("⊞ {}", name)).strong());
             if !checked {
                 ui.label(RichText::new("(not selected for generation)").weak());
             }

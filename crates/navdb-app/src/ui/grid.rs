@@ -131,7 +131,7 @@ impl Default for GridOptions<'_> {
 }
 
 fn truncate(s: &str, n: usize) -> String {
-    let one_line: String = s.chars().map(|c| if c == '\n' || c == '\r' { '⏎' } else { c }).collect();
+    let one_line: String = s.chars().map(|c| if c == '\n' || c == '\r' { '¶' } else { c }).collect();
     if one_line.chars().count() > n {
         format!("{}…", one_line.chars().take(n).collect::<String>())
     } else {
@@ -245,9 +245,9 @@ pub fn data_grid(ui: &mut Ui, id: &str, src: &dyn GridSource, st: &mut GridState
                     let arrow = match sort_state {
                         Some((sc, desc)) if sc == ci => {
                             if desc {
-                                " ▼"
+                                " ⬇"
                             } else {
-                                " ▲"
+                                " ⬆"
                             }
                         }
                         _ => "",
@@ -270,7 +270,7 @@ pub fn data_grid(ui: &mut Ui, id: &str, src: &dyn GridSource, st: &mut GridState
                 let (_, num_resp) = row.col(|ui| {
                     let mark = match status {
                         RowStatus::New => "＊",
-                        RowStatus::Modified => "✎",
+                        RowStatus::Modified => "✏",
                         RowStatus::Deleted => "✖",
                         RowStatus::Normal => "",
                     };
@@ -526,7 +526,7 @@ pub fn form_view(ui: &mut Ui, src: &dyn GridSource, row: &mut usize, editable: b
             *row = n - 1;
             buffers.clear();
         }
-        if editable && ui.button("＋ Add").clicked() {
+        if editable && ui.button("➕ Add").clicked() {
             events.push(GridEvent::AddRow);
         }
     });

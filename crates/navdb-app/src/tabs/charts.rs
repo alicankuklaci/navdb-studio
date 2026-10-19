@@ -34,11 +34,11 @@ impl ChartKind {
             ChartKind::Bar => "📊 Bar",
             ChartKind::HBar => "☰ Horizontal Bar",
             ChartKind::Line => "📈 Line",
-            ChartKind::Area => "⛰ Area",
-            ChartKind::Scatter => "⁘ Scatter",
+            ChartKind::Area => "📈 Area",
+            ChartKind::Scatter => "⭐ Scatter",
             ChartKind::Pie => "◔ Pie / Donut",
             ChartKind::Kpi => "🔢 KPI Value",
-            ChartKind::Table => "▦ Table",
+            ChartKind::Table => "⊞ Table",
         }
     }
 }
@@ -94,10 +94,10 @@ impl SortMode {
     fn label(self) -> &'static str {
         match self {
             SortMode::None => "Query order",
-            SortMode::XAsc => "Category ↑",
-            SortMode::XDesc => "Category ↓",
-            SortMode::ValueAsc => "Value ↑",
-            SortMode::ValueDesc => "Value ↓",
+            SortMode::XAsc => "Category ⬆",
+            SortMode::XDesc => "Category ⬇",
+            SortMode::ValueAsc => "Value ⬆",
+            SortMode::ValueDesc => "Value ⬇",
         }
     }
 }
@@ -662,7 +662,7 @@ impl ChartsTab {
 
     fn top_bar(&mut self, ui: &mut Ui, st: &mut AppState) {
         ui.horizontal_wrapped(|ui| {
-            if ui.selectable_label(self.dashboard, "▦ Dashboard").clicked() {
+            if ui.selectable_label(self.dashboard, "⊞ Dashboard").clicked() {
                 self.dashboard = true;
             }
             ui.separator();
@@ -897,7 +897,7 @@ impl ChartsTab {
                     }
                     ui.separator();
                     ui.horizontal(|ui| {
-                        if ui.button("⧉ Duplicate").clicked() {
+                        if ui.button("📋 Duplicate").clicked() {
                             duplicate = true;
                         }
                         if ui.add_enabled(n_charts > 1, egui::Button::new(format!("{} Remove", icon::DELETE))).clicked() {
@@ -945,7 +945,7 @@ impl ChartsTab {
         // ---- chart / data
         ui.horizontal(|ui| {
             ui.selectable_value(&mut p.show_data, false, "📊 Chart");
-            ui.selectable_value(&mut p.show_data, true, "▦ Query Result");
+            ui.selectable_value(&mut p.show_data, true, "⊞ Query Result");
         });
         ui.separator();
         if let Some(e) = &p.error {

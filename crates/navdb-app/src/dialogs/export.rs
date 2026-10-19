@@ -332,7 +332,7 @@ impl ExportWizard {
                         if !f.is_empty() && !it.name.to_lowercase().contains(&f) {
                             continue;
                         }
-                        ui.checkbox(&mut it.selected, format!("{} {}", it.kind.icon(), it.name));
+                        ui.checkbox(&mut it.selected, format!("{} {}", crate::ui::style::object_icon(it.kind), it.name));
                         ui.add_enabled(it.selected, egui::TextEdit::singleline(&mut it.file).desired_width(260.0));
                         ui.end_row();
                     }

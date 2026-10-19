@@ -37,7 +37,10 @@ impl Tab for ObjectsTab {
         };
         let Some(cfg) = st.config(&conn).cloned() else { return };
         let Some(scope) = sel.scope.clone() else {
-            ui.heading(format!("{} {}", ui::style::kind_icon(cfg.kind), cfg.display_name()));
+            ui.horizontal(|ui| {
+                ui.add(ui::style::kind_logo(cfg.kind, 26.0));
+                ui.heading(cfg.display_name());
+            });
             ui.label(RichText::new("Open the connection and select a database to see its objects.").weak());
             ui.horizontal(|ui| {
                 if !st.conns.contains_key(&conn) && ui.button("Open Connection").clicked() {
@@ -90,7 +93,7 @@ impl Tab for ObjectsTab {
         // toolbar
         ui.horizontal(|ui| {
             for k in &kinds {
-                if ui.selectable_label(*k == kind, format!("{} {}", k.icon(), k.label())).clicked() {
+                if ui.selectable_label(*k == kind, format!("{} {}", crate::ui::style::object_icon(*k), k.label())).clicked() {
                     st.selection.kind = Some(*k);
                     st.selection.object = None;
                     self.selected.clear();
@@ -160,7 +163,7 @@ impl Tab for ObjectsTab {
                 ui.horizontal_wrapped(|ui| {
                     for o in &list {
                         let sel = self.selected.contains(&o.name);
-                        let r = ui.selectable_label(sel, format!("{} {}", kind.icon(), o.name));
+                        let r = ui.selectable_label(sel, format!("{} {}", crate::ui::style::object_icon(kind), o.name));
                         if r.clicked() {
                             let m = ui.input(|i| i.modifiers);
                             clicked = Some((o.name.clone(), m.command, m.shift));
@@ -221,7 +224,7 @@ impl Tab for ObjectsTab {
                     row.set_selected(self.selected.contains(&o.name));
                     let mut resps = Vec::new();
                     resps.push(row.col(|ui| {
-                        ui.label(format!("{} {}", kind.icon(), o.name));
+                        ui.label(format!("{} {}", crate::ui::style::object_icon(kind), o.name));
                     }).1);
                     if show_rows {
                         resps.push(row.col(|ui| {
@@ -301,7 +304,8 @@ fn welcome(ui: &mut Ui, st: &mut AppState) {
             let w = ui.available_width();
             ui.add_space((w - 5.0 * 130.0).max(0.0) / 2.0);
             for k in DbKind::ALL {
-                if ui.add_sized([120.0, 60.0], egui::Button::new(RichText::new(format!("{}\n{}", ui::style::kind_icon(k), k.label())).size(15.0))).clicked() {
+                let b = egui::Button::image_and_text(ui::style::kind_logo(k, 30.0), RichText::new(k.label()).size(14.0));
+                if ui.add_sized([120.0, 70.0], b).clicked() {
                     cmd::new_connection(st, k);
                 }
             }
@@ -313,7 +317,15 @@ fn welcome(ui: &mut Ui, st: &mut AppState) {
             ui.label(RichText::new("Recent connections").strong());
             let conns: Vec<(String, String, DbKind)> = st.ws.connections.iter().map(|c| (c.id.clone(), c.display_name(), c.kind)).collect();
             for (id, name, kind) in conns.into_iter().take(10) {
-                if ui.link(format!("{} {}", ui::style::kind_icon(kind), name)).clicked() {
+                let clicked = ui
+                    .horizontal(|ui| {
+                        let w = ui.available_width();
+                        ui.add_space((w - 220.0).max(0.0) / 2.0);
+                        ui.add(ui::style::kind_logo(kind, 14.0));
+                        ui.link(&name).clicked()
+                    })
+                    .inner;
+                if clicked {
                     st.push(crate::state::Action::OpenConnection(id.clone()));
                     st.selection = Selection { conn: Some(id), ..Default::default() };
                 }

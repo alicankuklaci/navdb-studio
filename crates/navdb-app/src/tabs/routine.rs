@@ -958,7 +958,7 @@ impl RoutineTab {
 
 impl Tab for RoutineTab {
     fn title(&self) -> String {
-        format!("{} {} ({})", self.kind.icon(), self.display_name(), self.kind.singular())
+        format!("{} {} ({})", crate::ui::style::object_icon(self.kind), self.display_name(), self.kind.singular())
     }
 
     fn key(&self) -> String {
