@@ -24,10 +24,13 @@ mongodb = { version = "3.9.1", features = ["sync"] }
 duckdb = { version = "1.10506.1", features = ["bundled"] }
 ureq = { version = "3.4.2", features = ["json"] }
 tiberius = { version = "0.13.0", default-features = false, features = ["tds73", "rustls", "chrono"] }
-tokio = { version = "1.53.3", features = ["rt", "net", "time"] }
+tokio = { version = "1.53.3", features = ["rt", "rt-multi-thread", "net", "time"] }
 tokio-util = { version = "0.7.20", features = ["compat"] }
 oracle = "0.6.3"
-scylla = "1.9.0"
+scylla = { version = "1.9.0", features = ["rustls-023"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
+rustls-native-certs = "0.8"
+async-trait = "0.1"
 md-5 = "0.11.0"
 sha2 = "0.11.1"
 sqlparser = "0.63.0"

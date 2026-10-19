@@ -3627,6 +3627,7 @@ name = "navdb-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64 0.23.1",
  "chrono",
  "csv",
@@ -3644,6 +3645,8 @@ dependencies = [
  "redis",
  "regex",
  "rusqlite",
+ "rustls",
+ "rustls-native-certs",
  "scylla",
  "serde",
  "serde_json",
@@ -5168,6 +5171,7 @@ dependencies = [
  "itertools 0.15.0",
  "rand 0.9.5",
  "rand_pcg",
+ "rustls",
  "scylla-cql",
  "scylla-cql-core",
  "serde",
@@ -5176,6 +5180,7 @@ dependencies = [
  "socket2 0.6.5",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-rustls",
  "tracing",
  "uuid",
 ]
