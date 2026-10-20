@@ -45,7 +45,7 @@ def token():
     return jwt.encode(claims, KEY_FILE.read_text(), algorithm="ES256", headers={"kid": KEY_ID})
 
 
-def api(method, path, body=None):
+def api(method, path, body=None, missing_ok=False):
     url = path if path.startswith("http") else "https://api.appstoreconnect.apple.com" + path
     req = urllib.request.Request(url, method=method, data=json.dumps(body).encode() if body else None)
     req.add_header("Authorization", "Bearer " + token())
@@ -55,6 +55,8 @@ def api(method, path, body=None):
             data = r.read()
             return json.loads(data) if data else {}
     except urllib.error.HTTPError as e:
+        if missing_ok and e.code == 404:
+            return {}
         detail = e.read().decode(errors="replace")
         raise SystemExit(f"{method} {path}: HTTP {e.code}\n{detail}")
 
@@ -167,24 +169,51 @@ def subscriptions():
         print("subscription group created")
     existing = {s["attributes"]["productId"]: s["id"] for s in get_all(f"/v1/subscriptionGroups/{group}/subscriptions")}
     for level, (pid, ref, period, usd) in enumerate(PRODUCTS, start=1):
-        if pid in existing:
-            print("subscription exists:", pid)
-            continue
-        sub = api("POST", "/v1/subscriptions", {"data": {"type": "subscriptions",
-                                                        "attributes": {"name": ref, "productId": pid, "subscriptionPeriod": period,
-                                                                       "familySharable": False, "groupLevel": level,
-                                                                       "reviewNote": "Open Help → NavDB Studio Pro… to see the subscription window."},
-                                                        "relationships": {"group": rel("subscriptionGroups", group)}}})["data"]["id"]
-        label = "Monthly" if period == "ONE_MONTH" else "Yearly"
-        api("POST", "/v1/subscriptionLocalizations", {"data": {"type": "subscriptionLocalizations",
-                                                              "attributes": {"locale": "en-US", "name": f"NavDB Studio Pro {label}",
-                                                                             "description": "Unlimited connections, data sync and automation"},
-                                                              "relationships": {"subscription": rel("subscriptions", sub)}}})
-        set_prices(sub, usd)
+        sub = existing.get(pid)
+        if not sub:
+            sub = api("POST", "/v1/subscriptions", {"data": {"type": "subscriptions",
+                                                            "attributes": {"name": ref, "productId": pid, "subscriptionPeriod": period,
+                                                                           "familySharable": False, "groupLevel": level,
+                                                                           "reviewNote": "Open Help → NavDB Studio Pro… to see the subscription window."},
+                                                            "relationships": {"group": rel("subscriptionGroups", group)}}})["data"]["id"]
+            print("subscription created:", pid)
+        if not get_all(f"/v1/subscriptions/{sub}/subscriptionLocalizations"):
+            label = "Monthly" if period == "ONE_MONTH" else "Yearly"
+            api("POST", "/v1/subscriptionLocalizations", {"data": {"type": "subscriptionLocalizations",
+                                                                  "attributes": {"locale": "en-US", "name": f"NavDB Studio Pro {label}",
+                                                                                 "description": "Unlimited connections, data sync and automation"},
+                                                                  "relationships": {"subscription": rel("subscriptions", sub)}}})
+        availability(sub)
+        if not get_all(f"/v1/subscriptions/{sub}/prices?limit=1"):
+            set_prices(sub, usd)
+            print(f"  prices set: ${usd} and equalized storefronts")
+        free_trial(sub)
+
+
+def free_trial(sub):
+    """The introductory free trial, one offer per storefront."""
+    have = {o["relationships"]["territory"]["data"]["id"]
+            for o in get_all(f"/v1/subscriptions/{sub}/introductoryOffers?include=territory&limit=200")}
+    todo = [t["id"] for t in get_all("/v1/territories?limit=200") if t["id"] not in have]
+    for t in todo:
         api("POST", "/v1/subscriptionIntroductoryOffers", {"data": {"type": "subscriptionIntroductoryOffers",
                                                                    "attributes": {"duration": TRIAL, "offerMode": "FREE_TRIAL", "numberOfPeriods": 1},
-                                                                   "relationships": {"subscription": rel("subscriptions", sub)}}})
-        print(f"subscription created: {pid} ${usd} with a free trial")
+                                                                   "relationships": {"subscription": rel("subscriptions", sub),
+                                                                                     "territory": rel("territories", t)}}})
+    if todo:
+        print(f"  free trial added in {len(todo)} storefronts")
+
+
+def availability(sub):
+    """Sell the subscription in every storefront (and new ones Apple adds)."""
+    r = api("GET", f"/v1/subscriptions/{sub}/subscriptionAvailability", missing_ok=True)
+    if r.get("data"):
+        return
+    territories = [{"type": "territories", "id": t["id"]} for t in get_all("/v1/territories?limit=200")]
+    api("POST", "/v1/subscriptionAvailabilities", {"data": {"type": "subscriptionAvailabilities", "attributes": {"availableInNewTerritories": True},
+                                                           "relationships": {"subscription": rel("subscriptions", sub),
+                                                                             "availableTerritories": {"data": territories}}}})
+    print(f"  available in {len(territories)} storefronts")
 
 
 def set_prices(sub, usd):

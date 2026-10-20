@@ -35,10 +35,10 @@ build="${BUILD_NUMBER:-$(date -u +%Y%m%d%H%M)}"
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' "$root/Cargo.toml" | head -1)"
 
 identity() {
-  security find-identity -v "$@" | sed -n 's/.*"\(.*\)"$/\1/p' | grep "($team)" | head -1
+  security find-identity -v "$@" | sed -n 's/.*"\(.*\)"$/\1/p' | grep "($team)"
 }
-app_id="$(identity -p codesigning | grep '^Apple Distribution' || true)"
-pkg_id="$(identity | grep -E '^(3rd Party Mac Developer Installer|Mac Installer Distribution)' || true)"
+app_id="$(identity -p codesigning | grep '^Apple Distribution' | head -1 || true)"
+pkg_id="$(identity | grep -E '^(3rd Party Mac Developer Installer|Mac Installer Distribution)' | head -1 || true)"
 [[ -n "$app_id" ]] || { echo "missing 'Apple Distribution' certificate for team $team" >&2; exit 1; }
 [[ -n "$pkg_id" ]] || { echo "missing 'Mac Installer Distribution' certificate for team $team" >&2; exit 1; }
 [[ -f "$profile" ]] || { echo "missing provisioning profile: $profile" >&2; exit 1; }
