@@ -249,6 +249,17 @@ impl DbKind {
         }
     }
 
+    /// [`Self::GROUPS`] restricted to the kinds this build can connect to.
+    pub fn groups() -> Vec<(&'static str, Vec<DbKind>)> {
+        Self::GROUPS.iter().map(|(g, ks)| (*g, ks.iter().copied().filter(|k| k.available()).collect())).collect()
+    }
+
+    /// Whether this build ships a driver for the kind (Oracle is left out of
+    /// the sandboxed App Store build).
+    pub fn available(self) -> bool {
+        self != DbKind::Oracle || cfg!(feature = "oracle")
+    }
+
     pub fn is_file_based(self) -> bool {
         matches!(self, DbKind::Sqlite | DbKind::DuckDb)
     }

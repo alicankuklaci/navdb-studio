@@ -302,6 +302,10 @@ impl NavApp {
                 }
             });
             ui.menu_button("Help", |ui| {
+                if crate::store::ENABLED && ui.button("NavDB Studio Pro…").clicked() {
+                    self.st.open_dialog(crate::dialogs::pro::ProDialog::new(None));
+                    ui.close_menu();
+                }
                 if ui.button("About NavDB Studio").clicked() {
                     cmd::about(&mut self.st);
                     ui.close_menu();
@@ -325,13 +329,13 @@ impl NavApp {
             egui::popup_below_widget(ui, popup_id, &conn_resp, egui::PopupCloseBehavior::CloseOnClickOutside, |ui| {
                 // one column per group so the 30+ connection types fit on screen
                 ui.horizontal_top(|ui| {
-                    for (gi, (group, kinds)) in DbKind::GROUPS.iter().enumerate() {
+                    for (gi, (group, kinds)) in DbKind::groups().into_iter().enumerate() {
                         if gi > 0 {
                             ui.separator();
                         }
                         ui.vertical(|ui| {
                             ui.set_min_width(150.0);
-                            ui.label(egui::RichText::new(*group).strong().small());
+                            ui.label(egui::RichText::new(group).strong().small());
                             for &k in kinds.iter() {
                                 let b = egui::Button::image_and_text(ui::style::kind_logo(k, 16.0), k.label()).frame(false);
                                 if ui.add(b).clicked() {

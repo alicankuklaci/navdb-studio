@@ -115,9 +115,9 @@ impl ConnectionDialog {
             ui.horizontal(|ui| {
                 ui.add(ui::style::kind_logo(self.cfg.kind, 18.0));
                 egui::ComboBox::from_id_salt("conn-kind").selected_text(self.cfg.kind.label()).width(220.0).height(560.0).show_ui(ui, |ui| {
-                    for (group, kinds) in DbKind::GROUPS {
+                    for (group, kinds) in DbKind::groups() {
                         ui.label(RichText::new(group).small().weak());
-                        for &k in kinds {
+                        for k in kinds {
                             let b = egui::Button::image_and_text(ui::style::kind_logo(k, 16.0), k.label()).selected(self.cfg.kind == k).frame(false);
                             if ui.add(b).clicked() && self.cfg.kind != k {
                                 self.set_kind(k);
@@ -152,6 +152,7 @@ impl ConnectionDialog {
                     ui.add(egui::TextEdit::singleline(path).desired_width(260.0).min_size(egui::vec2(260.0, 0.0)).hint_text("/data/warehouse or s3://bucket/warehouse"));
                     if ui.button("Browse…").clicked() {
                         if let Some(p) = rfd::FileDialog::new().pick_folder() {
+                            crate::store::remember(&p);
                             *path = p.display().to_string();
                         }
                     }
@@ -171,11 +172,13 @@ impl ConnectionDialog {
                     };
                     if ui.button("Browse…").clicked() {
                         if let Some(p) = rfd::FileDialog::new().add_filter(filter, exts).add_filter("All files", &["*"]).pick_file() {
+                            crate::store::keep_access(&p, !self.cfg.read_only);
                             self.cfg.database = p.display().to_string();
                         }
                     }
                     if ui.button("New…").clicked() {
                         if let Some(p) = rfd::FileDialog::new().set_file_name(new_name).save_file() {
+                            crate::store::keep_access(&p, true);
                             self.cfg.database = p.display().to_string();
                         }
                     }
@@ -310,6 +313,7 @@ impl ConnectionDialog {
             }
             if ui.button("➕ Attach Database…").clicked() {
                 if let Some(p) = rfd::FileDialog::new().pick_file() {
+                    crate::store::keep_access(&p, !self.cfg.read_only);
                     let alias = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "db2".into());
                     self.cfg.attached.push((alias, p.display().to_string()));
                 }
@@ -373,6 +377,7 @@ impl ConnectionDialog {
                     ui.add(egui::TextEdit::singleline(field).desired_width(280.0).min_size(egui::vec2(280.0, 0.0)));
                     if ui.button("…").clicked() {
                         if let Some(p) = rfd::FileDialog::new().pick_file() {
+                            crate::store::remember(&p);
                             *field = p.display().to_string();
                         }
                     }
@@ -402,6 +407,7 @@ impl ConnectionDialog {
                     ui.add(egui::TextEdit::singleline(&mut self.cfg.ssh.private_key).desired_width(220.0).min_size(egui::vec2(220.0, 0.0)).hint_text("~/.ssh/id_ed25519"));
                     if ui.button("…").clicked() {
                         if let Some(p) = rfd::FileDialog::new().pick_file() {
+                            crate::store::remember(&p);
                             self.cfg.ssh.private_key = p.display().to_string();
                         }
                     }
@@ -427,7 +433,9 @@ impl Dialog for ConnectionDialog {
                 }
                 if !self.cfg.kind.is_file_based() {
                     ui.selectable_value(&mut self.page, Page::Ssl, "SSL");
-                    ui.selectable_value(&mut self.page, Page::Ssh, "SSH");
+                    if navdb_core::ssh::AVAILABLE {
+                        ui.selectable_value(&mut self.page, Page::Ssh, "SSH");
+                    }
                 }
             });
             ui.separator();

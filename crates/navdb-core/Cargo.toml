@@ -27,7 +27,7 @@ ureq = { version = "3.4.2", features = ["json"] }
 tiberius = { version = "0.13.0", default-features = false, features = ["tds73", "rustls", "chrono"] }
 tokio = { version = "1.53.3", features = ["rt", "rt-multi-thread", "net", "time"] }
 tokio-util = { version = "0.7.20", features = ["compat"] }
-oracle = "0.6.3"
+oracle = { version = "0.6.3", optional = true }
 scylla = { version = "1.9.0", features = ["rustls-023"] }
 rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
 rustls-native-certs = "0.8"
@@ -37,6 +37,13 @@ sha2 = "0.11.1"
 sqlparser = "0.63.0"
 base64 = "0.23.1"
 futures-util = "0.3.34"
+
+[features]
+default = ["oracle", "ssh-tunnel"]
+# Oracle loads the Instant Client at runtime; not possible inside the macOS App Sandbox
+oracle = ["dep:oracle"]
+# tunnels through the system OpenSSH client
+ssh-tunnel = []
 
 [dev-dependencies]
 tempfile = "3"

@@ -11,6 +11,9 @@ use std::time::{Duration, Instant};
 
 use crate::config::SshConfig;
 
+/// False in builds without the `ssh-tunnel` feature (the sandboxed App Store build).
+pub const AVAILABLE: bool = cfg!(feature = "ssh-tunnel");
+
 pub struct Tunnel {
     child: Child,
     pub local_port: u16,

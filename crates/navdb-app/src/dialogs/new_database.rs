@@ -388,6 +388,7 @@ impl DatabaseDialog {
                             .pick_file()
                             .or_else(|| crate::ui::save_file_dialog("database.db", "db"));
                         if let Some(p) = picked {
+                            crate::store::keep_access(&p, true);
                             self.file = p.display().to_string();
                             if self.name.is_empty() {
                                 if let Some(stem) = p.file_stem() {

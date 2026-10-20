@@ -5,6 +5,7 @@
 //! (APP_USER navdb/navdb, service FREEPDB1). Oracle Instant Client must be
 //! installed; point `NAVDB_ORACLE_CLIENT_DIR` at it when it is not on the
 //! default search path.
+#![cfg(feature = "oracle")]
 
 use navdb_core::driver::{self, Driver};
 use navdb_core::*;

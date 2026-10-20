@@ -326,7 +326,7 @@ fn welcome(ui: &mut Ui, st: &mut AppState) {
         ui.add_space(14.0);
         let (cw, gap) = (136.0, 6.0);
         let per_row = (((ui.available_width() + gap) / (cw + gap)).floor() as usize).clamp(1, 6);
-        for (group, kinds) in DbKind::GROUPS {
+        for (group, kinds) in DbKind::groups() {
             ui.add_space(6.0);
             ui.label(RichText::new(group).small().strong());
             for row in kinds.chunks(per_row) {

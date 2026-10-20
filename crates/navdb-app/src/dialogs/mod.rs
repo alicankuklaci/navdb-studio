@@ -14,6 +14,7 @@ pub mod import;
 pub mod manage_connections;
 pub mod new_database;
 pub mod preferences;
+pub mod pro;
 pub mod prompt;
 pub mod structure_sync;
 

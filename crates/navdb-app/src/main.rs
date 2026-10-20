@@ -8,10 +8,12 @@ mod catalog;
 mod commands;
 mod dialogs;
 mod state;
+mod store;
 mod tabs;
 mod ui;
 
 fn main() -> eframe::Result<()> {
+    store::start();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("NavDB Studio")

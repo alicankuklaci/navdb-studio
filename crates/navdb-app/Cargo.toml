@@ -8,8 +8,16 @@ license.workspace = true
 name = "navdb"
 path = "src/main.rs"
 
+[features]
+default = ["oracle", "ssh-tunnel"]
+oracle = ["navdb-core/oracle"]
+ssh-tunnel = ["navdb-core/ssh-tunnel"]
+# Mac App Store build: App Sandbox file access and StoreKit subscriptions.
+# Build with --no-default-features --features appstore (scripts/build-appstore.sh).
+appstore = []
+
 [dependencies]
-navdb-core = { path = "../navdb-core" }
+navdb-core = { path = "../navdb-core", default-features = false }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

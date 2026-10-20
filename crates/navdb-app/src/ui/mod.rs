@@ -175,9 +175,11 @@ pub fn open_file_dialog(exts: &[&str]) -> Option<std::path::PathBuf> {
     if !exts.is_empty() {
         d = d.add_filter("Supported", exts);
     }
-    d.pick_file()
+    let p = d.pick_file();
+    p.inspect(|p| crate::store::remember(p))
 }
 
 pub fn pick_folder_dialog() -> Option<std::path::PathBuf> {
-    rfd::FileDialog::new().pick_folder()
+    let p = rfd::FileDialog::new().pick_folder();
+    p.inspect(|p| crate::store::remember(p))
 }

@@ -99,9 +99,9 @@ pub fn kind_logo(k: DbKind, size: f32) -> egui::Image<'static> {
 
 /// "New Connection" picker: one submenu per group of database kinds.
 pub fn kind_menu(ui: &mut egui::Ui, mut on_pick: impl FnMut(DbKind)) {
-    for (group, kinds) in DbKind::GROUPS {
+    for (group, kinds) in DbKind::groups() {
         ui.menu_button(group, |ui| {
-            for &k in kinds {
+            for k in kinds {
                 if ui.add(egui::Button::image_and_text(kind_logo(k, 16.0), format!("{}…", k.label()))).clicked() {
                     on_pick(k);
                     ui.close_menu();
@@ -209,6 +209,8 @@ pub const NEW_BG: Color32 = Color32::from_rgba_premultiplied(14, 42, 24, 60);
 pub const DELETED_BG: Color32 = Color32::from_rgba_premultiplied(60, 16, 16, 70);
 
 pub mod icon {
+    pub const STAR: &str = super::ph::STAR;
+    pub const CHECK: &str = super::ph::CHECK;
     pub const CONNECTION: &str = super::ph::PLUGS_CONNECTED;
     pub const QUERY: &str = super::ph::FILE_SQL;
     pub const NEW_QUERY: &str = super::ph::NOTE_PENCIL;

@@ -564,6 +564,7 @@ impl AutomationTab {
                                 let ext = parse_format(format).map(|f| f.extension()).unwrap_or("csv");
                                 let name = format!("{}.{}", if table.is_empty() { "export" } else { table.as_str() }, ext);
                                 if let Some(p) = crate::ui::save_file_dialog(&name, ext) {
+                                    crate::store::keep_access(&p, true);
                                     *path = p.display().to_string();
                                 }
                             }

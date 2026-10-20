@@ -14,6 +14,7 @@ pub mod duck;
 pub mod mongo;
 pub mod mssql;
 pub mod mysql;
+#[cfg(feature = "oracle")]
 pub mod oracle;
 pub mod postgres;
 pub mod redis;
@@ -151,6 +152,9 @@ pub trait Driver: Send {
 pub fn connect(cfg: &ConnectionConfig) -> Result<Box<dyn Driver>> {
     let mut cfg = cfg.clone();
     let tunnel = if cfg.ssh.enabled && !cfg.kind.is_file_based() {
+        if !crate::ssh::AVAILABLE {
+            bail!("SSH tunnels are not available in this edition of NavDB Studio");
+        }
         let t = crate::ssh::Tunnel::open(&cfg.ssh, &cfg.host, cfg.port)?;
         cfg.host = "127.0.0.1".into();
         cfg.port = t.local_port;
@@ -164,6 +168,7 @@ pub fn connect(cfg: &ConnectionConfig) -> Result<Box<dyn Driver>> {
         DbKind::Sqlite => Box::new(sqlite::SqliteDriver::connect(&cfg)?),
         DbKind::Redis => Box::new(redis::RedisDriver::connect(&cfg)?),
         DbKind::SqlServer => Box::new(mssql::MsSqlDriver::connect(&cfg)?),
+        #[cfg(feature = "oracle")]
         DbKind::Oracle => Box::new(oracle::OracleDriver::connect(&cfg)?),
         DbKind::MongoDb => Box::new(mongo::MongoDriver::connect(&cfg)?),
         DbKind::DuckDb | DbKind::Iceberg => Box::new(duck::DuckDriver::connect(&cfg)?),

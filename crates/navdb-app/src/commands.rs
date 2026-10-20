@@ -5,9 +5,18 @@ use navdb_core::{ddl, DbKind, ObjectKind, Scope};
 
 use crate::dialogs;
 use crate::state::{Action, AppState};
+use crate::store;
 use crate::tabs;
 
+/// Saving one more connection needs Pro once the free limit is reached.
+fn connection_slot(st: &mut AppState) -> bool {
+    st.ws.connections.len() < store::FREE_CONNECTIONS || store::require_pro(st, "More than two saved connections")
+}
+
 pub fn new_connection(st: &mut AppState, kind: DbKind) {
+    if !connection_slot(st) {
+        return;
+    }
     st.open_dialog(dialogs::connection::ConnectionDialog::new(ConnectionConfig::new(kind), true));
 }
 
@@ -18,6 +27,9 @@ pub fn edit_connection(st: &mut AppState, id: &str) {
 }
 
 pub fn duplicate_connection(st: &mut AppState, id: &str) {
+    if !connection_slot(st) {
+        return;
+    }
     if let Some(mut c) = st.config(id).cloned() {
         c.id = uuid::Uuid::new_v4().to_string();
         c.name = format!("{} copy", c.display_name());
@@ -335,16 +347,25 @@ pub fn backup(st: &mut AppState, conn: &str, scope: &Scope) {
 }
 
 pub fn data_transfer(st: &mut AppState, source: Option<(String, Scope)>) {
+    if !store::require_pro(st, "Data Transfer") {
+        return;
+    }
     let d = dialogs::data_transfer::DataTransferDialog::new(st, source);
     st.open_dialog(d);
 }
 
 pub fn structure_sync(st: &mut AppState, source: Option<(String, Scope)>) {
+    if !store::require_pro(st, "Structure Sync") {
+        return;
+    }
     let d = dialogs::structure_sync::StructureSyncDialog::new(st, source);
     st.open_dialog(d);
 }
 
 pub fn data_sync(st: &mut AppState, source: Option<(String, Scope)>) {
+    if !store::require_pro(st, "Data Sync") {
+        return;
+    }
     let d = dialogs::data_sync::DataSyncDialog::new(st, source);
     st.open_dialog(d);
 }
@@ -370,16 +391,25 @@ pub fn console(st: &mut AppState, conn: &str) {
 }
 
 pub fn er_model(st: &mut AppState, conn: &str, scope: &Scope) {
+    if !store::require_pro(st, "The ER model") {
+        return;
+    }
     let t = tabs::er_model::ErModelTab::new(st, conn, scope.clone());
     st.open_tab(t);
 }
 
 pub fn charts(st: &mut AppState, source: Option<(String, Scope, String)>) {
+    if !store::require_pro(st, "Charts") {
+        return;
+    }
     let t = tabs::charts::ChartsTab::new(st, source);
     st.open_tab(t);
 }
 
 pub fn automation(st: &mut AppState) {
+    if !store::require_pro(st, "Automation") {
+        return;
+    }
     let t = tabs::automation::AutomationTab::new(st);
     st.open_tab(t);
 }
@@ -407,6 +437,9 @@ pub fn export_connections(st: &mut AppState) {
 }
 
 pub fn import_connections(st: &mut AppState) {
+    if !store::require_pro(st, "Importing connections") {
+        return;
+    }
     let Some(path) = crate::ui::open_file_dialog(&["json", "ncx"]) else { return };
     match std::fs::read_to_string(&path).map_err(anyhow::Error::from).and_then(|s| navdb_core::config::import_connections(&s)) {
         Ok(list) => {
