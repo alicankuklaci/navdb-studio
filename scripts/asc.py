@@ -5,6 +5,7 @@
     scripts/asc.py subscriptions  Pro subscription group, products, prices, free trial
     scripts/asc.py listing        store page text, categories, age rating, free price,
                                   screenshots and the latest build (packaging/appstore/)
+    scripts/asc.py submit         send the version and first subscriptions to App Review
 
 Needs ASC_KEY_ID, ASC_ISSUER_ID and the AuthKey_<id>.p8 file (ASC_KEY_FILE,
 default ~/.config/appstoreconnect/AuthKey_<id>.p8). Requires PyJWT and
@@ -321,6 +322,29 @@ def listing():
         print("build attached:", builds[0]["attributes"]["version"])
 
 
+def submit():
+    """Send the prepared version, with the first subscriptions, to App Review."""
+    app = app_id()
+    ver = next(v for v in get_all(f"/v1/apps/{app}/appStoreVersions?filter[platform]=MAC_OS")
+               if v["attributes"]["appStoreState"] == "PREPARE_FOR_SUBMISSION")
+    pending = [r for r in get_all(f"/v1/reviewSubmissions?filter[app]={app}&filter[platform]=MAC_OS")
+               if r["attributes"]["state"] == "READY_FOR_REVIEW"]
+    sub = pending[0] if pending else api("POST", "/v1/reviewSubmissions", {"data": {"type": "reviewSubmissions", "attributes": {"platform": "MAC_OS"},
+                                                                                  "relationships": {"app": rel("apps", app)}}})["data"]
+    if not get_all(f"/v1/reviewSubmissions/{sub['id']}/items"):
+        api("POST", "/v1/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems", "relationships": {
+            "reviewSubmission": rel("reviewSubmissions", sub["id"]), "appStoreVersion": rel("appStoreVersions", ver["id"])}}})
+    print("version", ver["attributes"]["versionString"], "added to the review submission")
+    group = get_all(f"/v1/apps/{app}/subscriptionGroups")[0]["id"]
+    for s in get_all(f"/v1/subscriptionGroups/{group}/subscriptions"):
+        if s["attributes"]["state"] == "READY_TO_SUBMIT":
+            api("POST", "/v1/subscriptionSubmissions", {"data": {"type": "subscriptionSubmissions",
+                                                                 "relationships": {"subscription": rel("subscriptions", s["id"])}}})
+            print("subscription added:", s["attributes"]["productId"])
+    r = api("PATCH", f"/v1/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions", "id": sub["id"], "attributes": {"submitted": True}}})
+    print("submitted for review:", r["data"]["attributes"]["state"])
+
+
 def free_price(app):
     points = get_all(f"/v1/apps/{app}/appPricePoints?filter[territory]=USA&limit=200")
     zero = next(p for p in points if float(p["attributes"]["customerPrice"]) == 0)
@@ -365,6 +389,8 @@ def main():
         subscriptions()
     elif cmd == "listing":
         listing()
+    elif cmd == "submit":
+        submit()
     else:
         raise SystemExit(__doc__)
 
