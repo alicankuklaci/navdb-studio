@@ -335,12 +335,8 @@ def submit():
         api("POST", "/v1/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems", "relationships": {
             "reviewSubmission": rel("reviewSubmissions", sub["id"]), "appStoreVersion": rel("appStoreVersions", ver["id"])}}})
     print("version", ver["attributes"]["versionString"], "added to the review submission")
-    group = get_all(f"/v1/apps/{app}/subscriptionGroups")[0]["id"]
-    for s in get_all(f"/v1/subscriptionGroups/{group}/subscriptions"):
-        if s["attributes"]["state"] == "READY_TO_SUBMIT":
-            api("POST", "/v1/subscriptionSubmissions", {"data": {"type": "subscriptionSubmissions",
-                                                                 "relationships": {"subscription": rel("subscriptions", s["id"])}}})
-            print("subscription added:", s["attributes"]["productId"])
+    # Apple only takes an app's first subscriptions from the web UI: open each one (and the
+    # group) in App Store Connect and choose Add for Review → this draft before submitting.
     r = api("PATCH", f"/v1/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions", "id": sub["id"], "attributes": {"submitted": True}}})
     print("submitted for review:", r["data"]["attributes"]["state"])
 
