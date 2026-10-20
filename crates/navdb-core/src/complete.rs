@@ -7,7 +7,7 @@
 //! fuzzy matching (`usrnm` finds `user_name`).
 
 use crate::dialect::Dialect;
-use crate::model::ColumnDef;
+use crate::model::{ColumnDef, ForeignKeyDef};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ItemKind {
@@ -21,6 +21,8 @@ pub enum ItemKind {
     Alias,
     Snippet,
     Word,
+    /// `ON` condition joining two tables.
+    Join,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -52,6 +54,10 @@ pub trait Catalog {
     /// `qualifier` (`"db"`, `"schema"` or `"db.schema"`).
     fn tables(&mut self, qualifier: Option<&str>) -> Option<Vec<TableEntry>>;
     fn columns(&mut self, qualifier: Option<&str>, table: &str) -> Option<Vec<ColumnDef>>;
+    /// Foreign keys declared on `table` (engines without them return none).
+    fn foreign_keys(&mut self, _qualifier: Option<&str>, _table: &str) -> Option<Vec<ForeignKeyDef>> {
+        Some(vec![])
+    }
 }
 
 /// Catalog with nothing in it (editors without a connection).
@@ -124,7 +130,10 @@ pub fn complete(text: &str, cursor: usize, dialect: Dialect, cat: &mut dyn Catal
     }
     let before = &before[..k];
 
-    if !explicit && qual.is_empty() && prefix.chars().count() < 2 {
+    // right after `JOIN t x ON` the join condition is offered unprompted
+    let after_on = qual.is_empty() && before.last().is_some_and(|t| t.is_kw("ON"));
+    let short = prefix.chars().count() < 2;
+    if !explicit && qual.is_empty() && short && !after_on {
         return None;
     }
     // `AS name`: the user is naming something new
@@ -139,7 +148,12 @@ pub fn complete(text: &str, cursor: usize, dialect: Dialect, cat: &mut dyn Catal
 
     let mut b = Builder { prefix: prefix.clone(), dialect, quoted, items: Vec::new(), incomplete: false, exact: false };
 
-    if !qual.is_empty() {
+    if after_on && pos == Pos::Expr(Clause::On) {
+        add_join_conditions(&mut b, &refs, cursor, &ctes, cat);
+    }
+    if after_on && short && !explicit {
+        // only the conditions: columns and keywords wait for typing
+    } else if !qual.is_empty() {
         complete_qualified(&mut b, &qual, pos, &refs, &ctes, cat);
     } else {
         match pos {
@@ -675,6 +689,8 @@ struct Ref {
     alias: Option<String>,
     /// Output columns of a derived table (`(SELECT ...) x`).
     derived: Option<Vec<String>>,
+    /// Char offset where the reference starts.
+    at: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -775,7 +791,7 @@ fn parse_refs(toks: &[Tok], ctes: &[Cte], cat: &mut dyn Catalog) -> Vec<Ref> {
                         j += 1;
                     }
                     let alias = toks.get(j).and_then(|t| t.name());
-                    out.push(Ref { qualifier: None, name: alias.clone().unwrap_or_default(), alias: None, derived: Some(cols) });
+                    out.push(Ref { qualifier: None, name: alias.clone().unwrap_or_default(), alias: None, derived: Some(cols), at: t.start });
                     expect = false;
                 }
                 in_from.push(false);
@@ -812,10 +828,10 @@ fn parse_refs(toks: &[Tok], ctes: &[Cte], cat: &mut dyn Catalog) -> Vec<Ref> {
                 let qualifier = if parts.is_empty() { None } else { Some(parts.join(".")) };
                 if is_call {
                     if let Some(a) = alias {
-                        out.push(Ref { qualifier: None, name: a, alias: None, derived: Some(vec![]) });
+                        out.push(Ref { qualifier: None, name: a, alias: None, derived: Some(vec![]), at: t.start });
                     }
                 } else {
-                    out.push(Ref { qualifier, name, alias, derived: None });
+                    out.push(Ref { qualifier, name, alias, derived: None, at: t.start });
                 }
                 expect = false;
                 i = j;
@@ -993,6 +1009,14 @@ impl Builder {
         self.items.push(Item { label: name.into(), insert, cursor_back: 0, kind, detail: detail.into(), score: s + boost });
     }
 
+    fn add_join(&mut self, cond: &str, detail: &str, boost: i32) {
+        if self.quoted {
+            return;
+        }
+        let Some(s) = fuzzy_score(cond, &self.prefix) else { return };
+        self.items.push(Item { label: cond.into(), insert: cond.into(), cursor_back: 0, kind: ItemKind::Join, detail: detail.into(), score: s + boost });
+    }
+
     fn add_kw(&mut self, kw: &str, boost: i32) {
         if self.quoted {
             return;
@@ -1064,6 +1088,23 @@ fn add_ref_columns(b: &mut Builder, r: &Ref, ctes: &[Cte], cat: &mut dyn Catalog
     }
 }
 
+/// The statement's table that `a` / `t` / `db.t` in front of a dot names.
+fn find_ref<'r>(refs: &'r [Ref], qual: &[String]) -> Option<&'r Ref> {
+    let last = qual.last()?;
+    let parent = (qual.len() > 1).then(|| qual[..qual.len() - 1].join("."));
+    refs.iter().find(|r| match &r.alias {
+        Some(a) => qual.len() == 1 && a.eq_ignore_ascii_case(last),
+        None => {
+            r.name.eq_ignore_ascii_case(last)
+                && match (&parent, &r.qualifier) {
+                    (None, _) => true,
+                    (Some(p), Some(rq)) => p.eq_ignore_ascii_case(rq),
+                    (Some(_), None) => false,
+                }
+        }
+    })
+}
+
 fn complete_qualified(b: &mut Builder, qual: &[String], pos: Pos, refs: &[Ref], ctes: &[Cte], cat: &mut dyn Catalog) {
     let q = qual.join(".");
     if pos == Pos::Tables {
@@ -1074,18 +1115,7 @@ fn complete_qualified(b: &mut Builder, qual: &[String], pos: Pos, refs: &[Ref], 
     // alias / table of this statement
     let last = qual.last().unwrap();
     let parent = (qual.len() > 1).then(|| qual[..qual.len() - 1].join("."));
-    let hit = refs.iter().find(|r| match &r.alias {
-        Some(a) => qual.len() == 1 && a.eq_ignore_ascii_case(last),
-        None => {
-            r.name.eq_ignore_ascii_case(last)
-                && match (&parent, &r.qualifier) {
-                    (None, _) => true,
-                    (Some(p), Some(rq)) => p.eq_ignore_ascii_case(rq),
-                    (Some(_), None) => false,
-                }
-        }
-    });
-    if let Some(r) = hit {
+    if let Some(r) = find_ref(refs, qual) {
         add_ref_columns(b, r, ctes, cat, 300, false);
         b.add_kw("*", 0);
         return;
@@ -1104,7 +1134,7 @@ fn complete_qualified(b: &mut Builder, qual: &[String], pos: Pos, refs: &[Ref], 
         Some(p) => canonical_container(p, cat, &mut b.incomplete).and_then(|p| cat.tables(Some(&p))),
     };
     if let Some(t) = tables.as_ref().and_then(|v| v.iter().find(|t| t.name.eq_ignore_ascii_case(last))) {
-        let r = Ref { qualifier: parent.clone(), name: t.name.clone(), alias: None, derived: None };
+        let r = Ref { qualifier: parent.clone(), name: t.name.clone(), alias: None, derived: None, at: 0 };
         add_ref_columns(b, &r, ctes, cat, 300, false);
         return;
     }
@@ -1298,6 +1328,303 @@ fn add_functions(b: &mut Builder, d: Dialect, boost: i32) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Join conditions
+
+/// Name a reference is written with in expressions (its alias, else its name).
+fn ref_label(r: &Ref, d: Dialect) -> String {
+    let l = r.alias.as_deref().unwrap_or(&r.name);
+    if needs_quote(l, d) { d.quote_ident(l) } else { l.to_string() }
+}
+
+/// `user_id` style names a table's rows are referred to by: `users` → `user`, `categories` → `category`.
+fn singular_stems(table: &str) -> Vec<String> {
+    let t = table.to_lowercase();
+    let mut v = vec![t.clone()];
+    if let Some(s) = t.strip_suffix("ies") {
+        v.push(format!("{}y", s));
+    } else if let Some(s) = t.strip_suffix('s') {
+        v.push(s.to_string());
+    }
+    v
+}
+
+/// `ON` conditions linking the table joined last to each table before it:
+/// declared foreign keys (either direction), else `<table>_id = id` naming.
+fn add_join_conditions(b: &mut Builder, refs: &[Ref], cursor: usize, ctes: &[Cte], cat: &mut dyn Catalog) {
+    let Some(ni) = refs.iter().rposition(|r| r.at < cursor) else { return };
+    let new = &refs[ni];
+    let d = b.dialect;
+    let col = |c: &str| if needs_quote(c, d) { d.quote_ident(c) } else { c.to_string() };
+    let is_table = |r: &Ref| r.derived.is_none() && !(r.qualifier.is_none() && ctes.iter().any(|c| c.name.eq_ignore_ascii_case(&r.name)));
+    for (k, old) in refs[..ni].iter().enumerate().rev() {
+        let (nl, ol) = (ref_label(new, d), ref_label(old, d));
+        let mut found = false;
+        // (table holding the key, referenced table, key on the new side)
+        for (from, to, from_new) in [(new, old, true), (old, new, false)] {
+            if !is_table(from) || !is_table(to) {
+                continue;
+            }
+            let Some(fks) = cat.foreign_keys(from.qualifier.as_deref(), &from.name) else {
+                b.incomplete = true;
+                continue;
+            };
+            for fk in fks.iter().filter(|fk| fk.ref_table.eq_ignore_ascii_case(&to.name) && !fk.columns.is_empty()) {
+                let cond = fk
+                    .columns
+                    .iter()
+                    .zip(&fk.ref_columns)
+                    .map(|(c, rc)| if from_new { format!("{}.{} = {}.{}", nl, col(c), ol, col(rc)) } else { format!("{}.{} = {}.{}", nl, col(rc), ol, col(c)) })
+                    .collect::<Vec<_>>()
+                    .join(" AND ");
+                let detail = if fk.name.is_empty() { "foreign key".to_string() } else { format!("FK {}", fk.name) };
+                b.add_join(&cond, &detail, 500 - k as i32);
+                found = true;
+            }
+        }
+        if found {
+            continue;
+        }
+        let (Some(nc), Some(oc)) = (ref_columns(new, ctes, cat), ref_columns(old, ctes, cat)) else {
+            b.incomplete = true;
+            continue;
+        };
+        let has = |cols: &[(String, String)], n: &str| cols.iter().find(|(c, _)| c.eq_ignore_ascii_case(n)).map(|(c, _)| c.clone());
+        for (from_cols, to_cols, to, from_new) in [(&nc, &oc, old, true), (&oc, &nc, new, false)] {
+            let Some(id) = has(to_cols, "id") else { continue };
+            for stem in singular_stems(&to.name) {
+                if let Some(fc) = has(from_cols, &format!("{}_id", stem)) {
+                    let cond = if from_new { format!("{}.{} = {}.{}", nl, col(&fc), ol, col(&id)) } else { format!("{}.{} = {}.{}", nl, col(&id), ol, col(&fc)) };
+                    b.add_join(&cond, "by name", 400 - k as i32);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Signature help
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SignatureHelp {
+    /// e.g. `DATE_FORMAT(date, format)`.
+    pub signature: String,
+    /// Char range of each parameter inside `signature`.
+    pub params: Vec<(usize, usize)>,
+    /// Parameter the cursor is in (may be past the end for unknown arity).
+    pub active: usize,
+}
+
+fn lookup_function(name: &str, d: Dialect) -> Option<&'static str> {
+    FUNCTIONS
+        .iter()
+        .chain(dialect_functions(d))
+        .find(|(n, sig)| n.eq_ignore_ascii_case(name) || sig.split('(').next().is_some_and(|l| l.trim().eq_ignore_ascii_case(name)))
+        .map(|(_, sig)| *sig)
+}
+
+fn signature_params(sig: &[char]) -> Vec<(usize, usize)> {
+    let Some(open) = sig.iter().position(|&c| c == '(') else { return vec![] };
+    let mut out = Vec::new();
+    let mut depth = 0;
+    let mut start = open + 1;
+    for (i, &c) in sig.iter().enumerate().skip(open + 1) {
+        match c {
+            '(' => depth += 1,
+            ')' if depth > 0 => depth -= 1,
+            ',' | ')' if depth == 0 => {
+                let (mut a, mut e) = (start, i);
+                while a < e && sig[a] == ' ' {
+                    a += 1;
+                }
+                while e > a && sig[e - 1] == ' ' {
+                    e -= 1;
+                }
+                if a < e {
+                    out.push((a, e));
+                }
+                start = i + 1;
+                if c == ')' {
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Signature of the function call the cursor is inside, with the argument
+/// being typed.
+pub fn signature_help(text: &str, cursor: usize, dialect: Dialect) -> Option<SignatureHelp> {
+    let chars: Vec<char> = text.chars().collect();
+    let cursor = cursor.min(chars.len());
+    let toks = tokenize(&chars, dialect);
+    if toks.iter().any(|t| t.t == Tk::Comment && t.contains_cursor(cursor)) {
+        return None;
+    }
+    let before: Vec<&Tok> = toks.iter().filter(|t| t.t != Tk::Comment && t.end <= cursor).collect();
+    let (mut depth, mut commas) = (0, 0);
+    for i in (0..before.len()).rev() {
+        match before[i].t {
+            Tk::Punct(')') => depth += 1,
+            Tk::Punct('(') if depth > 0 => depth -= 1,
+            Tk::Punct('(') => {
+                let Tk::Word(name) = &before.get(i.checked_sub(1)?)?.t else { return None };
+                let sig = lookup_function(name, dialect)?;
+                let sc: Vec<char> = sig.chars().collect();
+                let params = signature_params(&sc);
+                let mut active = commas;
+                if active >= params.len() && params.last().is_some_and(|&(a, e)| sc[a..e].iter().collect::<String>().contains("...")) {
+                    active = params.len() - 1;
+                }
+                return Some(SignatureHelp { signature: sig.to_string(), params, active });
+            }
+            Tk::Punct(',') if depth == 0 => commas += 1,
+            Tk::Punct(';') => return None,
+            _ => {}
+        }
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
+// Hover
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Hover {
+    pub kind: ItemKind,
+    pub title: String,
+    pub detail: String,
+    /// (name, detail) rows: a table's columns.
+    pub rows: Vec<(String, String)>,
+    /// Some metadata was still loading; ask again for the full picture.
+    pub incomplete: bool,
+}
+
+/// What the word at char index `at` refers to: a table of the statement (by
+/// name or alias), a column, a catalog table or a function.
+pub fn hover(text: &str, at: usize, dialect: Dialect, cat: &mut dyn Catalog) -> Option<Hover> {
+    let chars: Vec<char> = text.chars().collect();
+    let toks: Vec<Tok> = tokenize(&chars, dialect).into_iter().filter(|t| t.t != Tk::Comment).collect();
+    let wi = toks.iter().position(|t| t.start <= at && at < t.end && matches!(t.t, Tk::Word(_) | Tk::Quoted(..)))?;
+    let seg_start = toks[..wi].iter().rposition(|t| t.t == Tk::Punct(';')).map(|i| i + 1).unwrap_or(0);
+    let seg_end = toks[wi..].iter().position(|t| t.t == Tk::Punct(';')).map(|i| i + wi).unwrap_or(toks.len());
+    let seg = &toks[seg_start..seg_end];
+    let wi = wi - seg_start;
+    let tok = &seg[wi];
+    let next = seg.get(wi + 1).map(|t| &t.t);
+
+    if let Tk::Word(w) = &tok.t {
+        if next == Some(&Tk::Punct('(')) {
+            if let Some(sig) = lookup_function(w, dialect) {
+                return Some(Hover { kind: ItemKind::Function, title: sig.to_string(), detail: "function".into(), rows: vec![], incomplete: false });
+            }
+        }
+    }
+    let name = tok.name()?;
+    let mut qual: Vec<String> = Vec::new();
+    let mut k = wi;
+    while k >= 2 && seg[k - 1].t == Tk::Punct('.') {
+        match seg[k - 2].name() {
+            Some(n) => qual.insert(0, n),
+            None => break,
+        }
+        k -= 2;
+    }
+    let ctes = parse_ctes(seg, cat);
+    let refs = parse_refs(seg, &ctes, cat);
+    let mut incomplete = false;
+
+    // a table: `o` in `o.id`, `orders` / `o` in `FROM orders o`
+    let table_hover = |r: &Ref, cat: &mut dyn Catalog, incomplete: &mut bool| -> Hover {
+        let cte = r.qualifier.is_none() && ctes.iter().any(|c| c.name.eq_ignore_ascii_case(&r.name));
+        let detail = if r.derived.is_some() {
+            "derived table".to_string()
+        } else if cte {
+            "CTE".to_string()
+        } else {
+            match &r.qualifier {
+                Some(q) => format!("table · {}", q),
+                None => "table".to_string(),
+            }
+        };
+        let fks = if r.derived.is_none() && !cte { cat.foreign_keys(r.qualifier.as_deref(), &r.name).unwrap_or_default() } else { vec![] };
+        let rows = match ref_columns(r, &ctes, cat) {
+            Some(cols) => cols.into_iter().map(|(c, d)| { let d = with_fk(d, &c, &fks); (c, d) }).collect(),
+            None => {
+                *incomplete = true;
+                vec![]
+            }
+        };
+        let title = match &r.alias {
+            Some(a) => format!("{} {}", r.name, a),
+            None => r.name.clone(),
+        };
+        Hover { kind: ItemKind::Table, title, detail, rows, incomplete: *incomplete }
+    };
+    let column_hover = |r: &Ref, col: &str, cat: &mut dyn Catalog, incomplete: &mut bool| -> Option<Hover> {
+        let Some(cols) = ref_columns(r, &ctes, cat) else {
+            *incomplete = true;
+            return None;
+        };
+        let (c, d) = cols.into_iter().find(|(c, _)| c.eq_ignore_ascii_case(col))?;
+        let fks = if r.derived.is_none() { cat.foreign_keys(r.qualifier.as_deref(), &r.name).unwrap_or_default() } else { vec![] };
+        Some(Hover { kind: ItemKind::Column, title: format!("{}.{}", r.alias.as_deref().unwrap_or(&r.name), c), detail: with_fk(d, &c, &fks), rows: vec![], incomplete: false })
+    };
+    let by_label = |n: &str| refs.iter().find(|r| r.alias.as_deref().is_some_and(|a| a.eq_ignore_ascii_case(n))).or_else(|| refs.iter().find(|r| r.name.eq_ignore_ascii_case(n)));
+    let unreferenced = |qualifier: Option<&str>, n: &str, cat: &mut dyn Catalog, incomplete: &mut bool| -> Option<Ref> {
+        match cat.tables(qualifier) {
+            Some(v) => v.into_iter().find(|t| t.name.eq_ignore_ascii_case(n)).map(|t| Ref { qualifier: qualifier.map(String::from), name: t.name, alias: None, derived: None, at: 0 }),
+            None => {
+                *incomplete = true;
+                None
+            }
+        }
+    };
+
+    if next == Some(&Tk::Punct('.')) || qual.is_empty() {
+        if let Some(r) = if qual.is_empty() { by_label(&name) } else { None } {
+            return Some(table_hover(r, cat, &mut incomplete));
+        }
+        if qual.is_empty() && next != Some(&Tk::Punct('.')) {
+            for r in &refs {
+                if let Some(h) = column_hover(r, &name, cat, &mut incomplete) {
+                    return Some(h);
+                }
+            }
+        }
+        let q = (!qual.is_empty()).then(|| qual.join("."));
+        if let Some(r) = unreferenced(q.as_deref(), &name, cat, &mut incomplete) {
+            return Some(table_hover(&r, cat, &mut incomplete));
+        }
+    } else {
+        let owner = match find_ref(&refs, &qual) {
+            Some(r) => Some(r.clone()),
+            None => {
+                let parent = (qual.len() > 1).then(|| qual[..qual.len() - 1].join("."));
+                unreferenced(parent.as_deref(), qual.last().unwrap(), cat, &mut incomplete)
+            }
+        };
+        if let Some(h) = owner.and_then(|r| column_hover(&r, &name, cat, &mut incomplete)) {
+            return Some(h);
+        }
+    }
+    incomplete.then(|| Hover { kind: ItemKind::Word, title: name, detail: "loading…".into(), rows: vec![], incomplete: true })
+}
+
+/// Column detail plus the column it references, if it's a foreign key.
+fn with_fk(detail: String, col: &str, fks: &[ForeignKeyDef]) -> String {
+    for fk in fks {
+        if let Some(i) = fk.columns.iter().position(|c| c.eq_ignore_ascii_case(col)) {
+            let rc = fk.ref_columns.get(i).map(String::as_str).unwrap_or("");
+            return format!("{} → {}.{}", detail, fk.ref_table, rc);
+        }
+    }
+    detail
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1308,6 +1635,7 @@ mod tests {
         dbs: Vec<String>,
         schemas: Vec<String>,
         tables: HashMap<String, Vec<(String, Vec<&'static str>)>>,
+        fks: HashMap<String, Vec<ForeignKeyDef>>,
         asked: Vec<String>,
     }
 
@@ -1323,6 +1651,8 @@ mod tests {
                 ],
             );
             m.tables.insert("analytics".into(), vec![("events".into(), vec!["event_id", "kind", "ts"])]);
+            let fk = ForeignKeyDef { name: "fk_item_order".into(), columns: vec!["order_id".into()], ref_table: "orders".into(), ref_columns: vec!["id".into()], ..Default::default() };
+            m.fks.insert("order_items".into(), vec![fk]);
             m
         }
     }
@@ -1343,6 +1673,9 @@ mod tests {
             let v = self.tables.get(q.unwrap_or(""))?;
             let (_, cols) = v.iter().find(|(n, _)| n.eq_ignore_ascii_case(t))?;
             Some(cols.iter().map(|c| ColumnDef { primary_key: *c == "id", ..ColumnDef::new(*c, "int") }).collect())
+        }
+        fn foreign_keys(&mut self, _: Option<&str>, t: &str) -> Option<Vec<ForeignKeyDef>> {
+            Some(self.fks.get(t).cloned().unwrap_or_default())
         }
     }
 
@@ -1591,5 +1924,76 @@ mod tests {
         let snip = Item { label: "monthly_report".into(), insert: "SELECT ...".into(), cursor_back: 0, kind: ItemKind::Snippet, detail: "snippet".into(), score: 100 };
         let c = complete("mon", 3, Dialect::MySql, &mut Mem::shop(), false, &[snip]).unwrap();
         assert_eq!(c.items[0].kind, ItemKind::Snippet);
+    }
+
+    #[test]
+    fn join_conditions_after_on() {
+        // foreign key, offered as soon as `ON ` is typed
+        let v = run("SELECT * FROM orders o JOIN order_items oi ON |", false);
+        assert_eq!(v[0].label, "oi.order_id = o.id");
+        assert_eq!(v[0].kind, ItemKind::Join);
+        assert!(v.iter().all(|i| i.kind == ItemKind::Join));
+        // reverse direction: key held by the earlier table
+        let v = run("SELECT * FROM order_items oi JOIN orders o ON |", false);
+        assert_eq!(v[0].label, "o.id = oi.order_id");
+        // naming convention without a declared key
+        let v = run("SELECT * FROM users u JOIN orders o ON |", false);
+        assert_eq!(v[0].label, "o.user_id = u.id");
+        assert_eq!(v[0].detail, "by name");
+        // typing narrows to columns again, conditions stay on top when they match
+        let v = run("SELECT * FROM users u JOIN orders o ON o.|", false);
+        assert!(labels(&v, ItemKind::Join).is_empty());
+        let v = run("SELECT * FROM users u JOIN orders ON |", false);
+        assert_eq!(v[0].label, "orders.user_id = u.id");
+        // nothing to join to
+        assert!(run("SELECT * FROM users u JOIN users ON |", false).is_empty());
+    }
+
+    #[test]
+    fn signature_help_tracks_argument() {
+        let sig = |sql: &str| {
+            let cur = sql.chars().position(|c| c == '|').unwrap();
+            signature_help(&sql.replacen('|', "", 1), cur, Dialect::MySql)
+        };
+        let h = sig("SELECT DATE_FORMAT(created_at, |) FROM users").unwrap();
+        assert_eq!(h.signature, "DATE_FORMAT(date, format)");
+        assert_eq!(h.active, 1);
+        let p: Vec<String> = h.params.iter().map(|&(a, e)| h.signature.chars().skip(a).take(e - a).collect()).collect();
+        assert_eq!(p, vec!["date", "format"]);
+        // nested call: the inner one wins, parens inside args don't count commas
+        let h = sig("SELECT IFNULL(COALESCE(a, (b), |").unwrap();
+        assert!(h.signature.starts_with("COALESCE"));
+        assert_eq!(h.active, 2);
+        let h = sig("SELECT IFNULL(COALESCE(a, b), |").unwrap();
+        assert_eq!((h.signature.as_str(), h.active), ("IFNULL(a, b)", 1));
+        assert!(sig("SELECT * FROM t WHERE id IN (|").is_none());
+        assert!(sig("SELECT IFNULL(a, b)|").is_none());
+    }
+
+    #[test]
+    fn hover_tables_columns_functions() {
+        let hov = |sql: &str, word: &str| {
+            let at = sql.find(word).unwrap();
+            hover(sql, at, Dialect::MySql, &mut Mem::shop())
+        };
+        let sql = "SELECT o.total, user_name, COUNT(*) FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN users u";
+        let h = hov(sql, "o.total").unwrap();
+        assert_eq!((h.kind, h.title.as_str()), (ItemKind::Table, "orders o"));
+        assert_eq!(h.rows.len(), 4);
+        let h = hov(sql, "total").unwrap();
+        assert_eq!((h.kind, h.title.as_str(), h.detail.as_str()), (ItemKind::Column, "o.total", "int"));
+        let h = hov(sql, "user_name").unwrap();
+        assert_eq!(h.title, "u.user_name");
+        let h = hov(sql, "order_id").unwrap();
+        assert_eq!(h.detail, "int → orders.id");
+        let h = hov(sql, "COUNT").unwrap();
+        assert_eq!(h.kind, ItemKind::Function);
+        let h = hov("SELECT 1 FROM users", "users").unwrap();
+        assert_eq!(h.rows[0], ("id".to_string(), "int · PK".to_string()));
+        // table not in FROM yet
+        let h = hov("SELECT order_items.qty", "qty").unwrap();
+        assert_eq!(h.title, "order_items.qty");
+        assert!(hov("SELECT 1 FROM users", "SELECT").is_none());
+        assert!(hov("SELECT nope FROM users", "nope").is_none());
     }
 }

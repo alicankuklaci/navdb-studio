@@ -2,7 +2,7 @@
 //! names loaded once are shared by the tree and every query tab.
 
 use navdb_core::complete::{Catalog, TableEntry};
-use navdb_core::{ColumnDef, ObjectKind, Scope};
+use navdb_core::{ColumnDef, ForeignKeyDef, ObjectKind, Scope};
 
 use crate::state::{AppState, OpenConn};
 
@@ -37,6 +37,13 @@ impl AppCatalog<'_> {
         } else {
             Some(Scope::new(cur.db, Some(q.to_string())))
         }
+    }
+
+    /// The catalog's spelling of a table name (`users` typed, `Users` stored).
+    fn spelling(&mut self, qualifier: Option<&str>, table: &str) -> String {
+        self.tables(qualifier)
+            .and_then(|v| v.into_iter().find(|t| t.name.eq_ignore_ascii_case(table)).map(|t| t.name))
+            .unwrap_or_else(|| table.to_string())
     }
 
     fn names(oc: &mut OpenConn, scope: &Scope, kind: ObjectKind) -> Option<Vec<String>> {
@@ -92,12 +99,15 @@ impl Catalog for AppCatalog<'_> {
 
     fn columns(&mut self, qualifier: Option<&str>, table: &str) -> Option<Vec<ColumnDef>> {
         let scope = self.resolve(qualifier)?;
-        // the catalog's spelling of the name (`users` typed, `Users` stored)
-        let name = self
-            .tables(qualifier)
-            .and_then(|v| v.into_iter().find(|t| t.name.eq_ignore_ascii_case(table)).map(|t| t.name))
-            .unwrap_or_else(|| table.to_string());
+        let name = self.spelling(qualifier, table);
         let oc = self.oc()?;
         oc.columns(&scope, &name).map(|c| c.to_vec())
+    }
+
+    fn foreign_keys(&mut self, qualifier: Option<&str>, table: &str) -> Option<Vec<ForeignKeyDef>> {
+        let scope = self.resolve(qualifier)?;
+        let name = self.spelling(qualifier, table);
+        let oc = self.oc()?;
+        oc.foreign_keys(&scope, &name).map(|f| f.to_vec())
     }
 }

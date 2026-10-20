@@ -14,6 +14,8 @@ Navicat-style workflow, written from scratch in Rust. One app for MySQL, Postgre
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 ![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
+**English** · [Türkçe](README.tr.md)
+
 [**Download**](#download) · [Features](#features) · [Supported databases](#supported-databases) · [Build from source](#build-from-source) · [Contributing](#contributing)
 
 <img src="docs/screenshots/main.png" alt="NavDB Studio main window" width="900">
@@ -73,6 +75,9 @@ Each release also ships a `SHA256SUMS.txt` file for verifying downloads.
 ### SQL editor
 - Syntax highlighting, multiple result tabs, `EXPLAIN`, beautify and minify
 - **Context-aware autocomplete:** tables after `FROM`/`JOIN`, columns of aliased tables (`o.` → columns of `orders`), CTE and subquery columns, database and schema qualifiers, dialect functions with signatures
+- **JOIN conditions:** type `ON` and get a ready condition from foreign keys, or from `user_id = id` naming when none are declared
+- **Signature hints:** the parameter being typed is highlighted inside a function call
+- **Hover info:** a table's columns, a column's type and the key it references, a function's signature
 - Snippets, saved queries, query history log
 - Run the statement under the cursor, a selection, or a whole SQL file
 

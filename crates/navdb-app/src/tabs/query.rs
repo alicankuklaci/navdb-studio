@@ -13,7 +13,7 @@ use crate::catalog::AppCatalog;
 use crate::commands as cmd;
 use crate::state::AppState;
 use crate::ui::grid::{self, GridOptions, GridState};
-use crate::ui::sql_editor::SqlEditor;
+use crate::ui::sql_editor::{Assist, SqlEditor};
 use crate::ui::{self, style::icon};
 
 struct ResultTab {
@@ -529,13 +529,8 @@ impl Tab for QueryTab {
                     self.editor.ui(ui, &id, &words);
                     return;
                 }
-                self.editor.ui_with(ui, &id, &mut |text: &str, cursor: usize, explicit: bool| match (&conn, &scope) {
-                    (Some(conn), Some(scope)) => {
-                        let mut cat = AppCatalog { st: &mut *st, conn, scope };
-                        complete::complete(text, cursor, dialect, &mut cat, explicit, &snippets)
-                    }
-                    _ => complete::complete(text, cursor, dialect, &mut NoCatalog, explicit, &snippets),
-                });
+                let mut assist = SqlAssist { st: &mut *st, conn: conn.as_deref(), scope: scope.as_ref(), dialect, snippets: &snippets };
+                self.editor.ui_with(ui, &id, &mut assist);
             });
 
         // result panes
@@ -602,5 +597,39 @@ impl Tab for QueryTab {
                 }
             }
         }
+    }
+}
+
+/// Completion, signature and hover services over the tab's connection.
+struct SqlAssist<'a> {
+    st: &'a mut AppState,
+    conn: Option<&'a str>,
+    scope: Option<&'a Scope>,
+    dialect: Dialect,
+    snippets: &'a [Item],
+}
+
+impl SqlAssist<'_> {
+    fn with_catalog<R>(&mut self, f: impl FnOnce(&mut dyn complete::Catalog) -> R) -> R {
+        match (self.conn, self.scope) {
+            (Some(conn), Some(scope)) => f(&mut AppCatalog { st: &mut *self.st, conn, scope }),
+            _ => f(&mut NoCatalog),
+        }
+    }
+}
+
+impl Assist for SqlAssist<'_> {
+    fn complete(&mut self, text: &str, cursor: usize, explicit: bool) -> Option<complete::Completion> {
+        let (dialect, snippets) = (self.dialect, self.snippets);
+        self.with_catalog(|cat| complete::complete(text, cursor, dialect, cat, explicit, snippets))
+    }
+
+    fn signature(&mut self, text: &str, cursor: usize) -> Option<complete::SignatureHelp> {
+        complete::signature_help(text, cursor, self.dialect)
+    }
+
+    fn hover(&mut self, text: &str, at: usize) -> Option<complete::Hover> {
+        let dialect = self.dialect;
+        self.with_catalog(|cat| complete::hover(text, at, dialect, cat))
     }
 }

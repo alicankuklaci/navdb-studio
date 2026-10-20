@@ -4,11 +4,31 @@
 use egui::text::{CCursor, CCursorRange};
 use egui::{Color32, Key, Modifiers, RichText, Ui};
 use egui_phosphor::regular as ph;
-use navdb_core::complete::{self, Completion, Item, ItemKind};
+use navdb_core::complete::{self, Completion, Hover, Item, ItemKind, SignatureHelp};
 use navdb_core::sqlutil;
 
-/// Produces completions for (text, cursor char index, explicitly requested).
-pub type Completer<'a> = dyn FnMut(&str, usize, bool) -> Option<Completion> + 'a;
+/// Language services behind the editor. Positions are char indexes.
+pub trait Assist {
+    /// Completions at `cursor`; `explicit` for Ctrl+Space.
+    fn complete(&mut self, text: &str, cursor: usize, explicit: bool) -> Option<Completion>;
+    /// Signature of the function call around `cursor`.
+    fn signature(&mut self, _text: &str, _cursor: usize) -> Option<SignatureHelp> {
+        None
+    }
+    /// What the word at `at` refers to.
+    fn hover(&mut self, _text: &str, _at: usize) -> Option<Hover> {
+        None
+    }
+}
+
+/// Plain word completion (no SQL engine behind the editor).
+struct Words<'a>(&'a [String]);
+
+impl Assist for Words<'_> {
+    fn complete(&mut self, text: &str, cursor: usize, explicit: bool) -> Option<Completion> {
+        complete::complete_words(text, cursor, self.0, sqlutil::KEYWORDS, explicit)
+    }
+}
 
 #[derive(Default)]
 pub struct SqlEditor {
@@ -30,6 +50,11 @@ pub struct SqlEditor {
     gutter: String,
     /// Text length last frame: completion opens on typing, not on deleting.
     last_len: usize,
+    /// Signature hint and the (cursor, text length) it was computed for.
+    sig: Option<(usize, usize, SignatureHelp)>,
+    sig_at: Option<(usize, usize)>,
+    /// Hover info and the (char, text length) it was computed for.
+    hover: Option<(usize, usize, Option<Hover>, f64)>,
 }
 
 struct Popup {
@@ -58,6 +83,7 @@ fn kind_icon(k: ItemKind) -> (&'static str, Color32) {
         ItemKind::Alias => (ph::AT, Color32::from_rgb(0x4a, 0x9e, 0xe8)),
         ItemKind::Snippet => (ph::CODE_SIMPLE, Color32::from_rgb(0xd0, 0x70, 0x70)),
         ItemKind::Word => (ph::TEXT_ALIGN_LEFT, Color32::from_rgb(0x8a, 0x8f, 0x98)),
+        ItemKind::Join => (ph::LINK, Color32::from_rgb(0xe0, 0x8a, 0x4a)),
     }
 }
 
@@ -159,12 +185,11 @@ impl SqlEditor {
 
     /// Editor with plain word completion over `extra_words` and SQL keywords.
     pub fn ui(&mut self, ui: &mut Ui, id_salt: &str, extra_words: &[String]) -> egui::Response {
-        let mut words = |text: &str, cursor: usize, explicit: bool| complete::complete_words(text, cursor, extra_words, sqlutil::KEYWORDS, explicit);
-        self.ui_with(ui, id_salt, &mut words)
+        self.ui_with(ui, id_salt, &mut Words(extra_words))
     }
 
-    /// Editor whose completion list comes from `completer`.
-    pub fn ui_with(&mut self, ui: &mut Ui, id_salt: &str, completer: &mut Completer) -> egui::Response {
+    /// Editor whose completions, signature hints and hover info come from `assist`.
+    pub fn ui_with(&mut self, ui: &mut Ui, id_salt: &str, assist: &mut dyn Assist) -> egui::Response {
         let id = ui.make_persistent_id(id_salt);
         self.id = Some(id);
         // find / replace bar
@@ -314,7 +339,7 @@ impl SqlEditor {
         if self.auto_complete && (explicit || (typed && (grew || self.popup.is_some())) || refresh) {
             let was = self.popup.take().filter(|_| refresh && !typed && !explicit);
             let explicit = explicit || was.as_ref().is_some_and(|p| p.explicit);
-            match completer(&self.text, self.cursor, explicit) {
+            match assist.complete(&self.text, self.cursor, explicit) {
                 Some(c) if !c.items.is_empty() || c.incomplete => {
                     let pos = out
                         .galley
@@ -414,7 +439,124 @@ impl SqlEditor {
                 self.accept(&p, &it);
             }
         }
+        self.signature_ui(ui, id, &resp, &out, assist);
+        self.hover_ui(ui, id, &resp, &out, assist);
         resp
+    }
+
+    /// Function signature above the cursor, the argument being typed in bold.
+    fn signature_ui(&mut self, ui: &Ui, id: egui::Id, resp: &egui::Response, out: &egui::text_edit::TextEditOutput, assist: &mut dyn Assist) {
+        if !resp.has_focus() {
+            self.sig = None;
+            return;
+        }
+        let key = (self.cursor, self.text.len());
+        if self.sig_at != Some(key) {
+            self.sig_at = Some(key);
+            self.sig = assist.signature(&self.text, self.cursor).map(|h| (key.0, key.1, h));
+        }
+        let Some((_, _, h)) = &self.sig else { return };
+        if h.params.is_empty() {
+            return;
+        }
+        let cur = out.galley.pos_from_cursor(&out.galley.from_ccursor(CCursor::new(self.cursor)));
+        let pos = cur.left_top() + out.galley_pos.to_vec2();
+        let font = egui::FontId::monospace(self.font_size.max(12.0));
+        let v = ui.visuals();
+        let (weak, strong) = (v.weak_text_color(), v.strong_text_color());
+        let mut job = egui::text::LayoutJob::default();
+        let chars: Vec<char> = h.signature.chars().collect();
+        let mut at = 0;
+        let push = |job: &mut egui::text::LayoutJob, a: usize, e: usize, active: bool| {
+            let s: String = chars[a..e].iter().collect();
+            let mut f = egui::TextFormat::simple(font.clone(), if active { strong } else { weak });
+            if active {
+                f.underline = egui::Stroke::new(1.0_f32, strong);
+            }
+            job.append(&s, 0.0, f);
+        };
+        for (i, &(a, e)) in h.params.iter().enumerate() {
+            push(&mut job, at, a, false);
+            push(&mut job, a, e, i == h.active);
+            at = e;
+        }
+        push(&mut job, at, chars.len(), false);
+        egui::Area::new(id.with("signature"))
+            .order(egui::Order::Foreground)
+            .pivot(egui::Align2::LEFT_BOTTOM)
+            .fixed_pos(pos - egui::vec2(0.0, 2.0))
+            .interactable(false)
+            .show(ui.ctx(), |ui| {
+                egui::Frame::popup(ui.style()).inner_margin(egui::Margin::symmetric(6, 3)).show(ui, |ui| {
+                    ui.label(job);
+                });
+            });
+    }
+
+    /// Tooltip for the word under a resting pointer: table columns, column type, function signature.
+    fn hover_ui(&mut self, ui: &Ui, id: egui::Id, resp: &egui::Response, out: &egui::text_edit::TextEditOutput, assist: &mut dyn Assist) {
+        let ctx = ui.ctx();
+        let Some(ptr) = ctx.input(|i| i.pointer.hover_pos()).filter(|p| resp.rect.contains(*p) && self.popup.is_none()) else {
+            self.hover = None;
+            return;
+        };
+        let still = ctx.input(|i| i.pointer.time_since_last_movement());
+        const DELAY: f32 = 0.4;
+        if still < DELAY {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f32(DELAY - still + 0.02));
+            return;
+        }
+        let local = ptr - out.galley_pos;
+        if !out.galley.rect.expand(2.0).contains(local.to_pos2()) {
+            return;
+        }
+        let c = out.galley.cursor_from_pos(local);
+        let r = out.galley.pos_from_cursor(&c);
+        // the boundary nearest the pointer: the hovered char is on its left when the pointer is
+        let mut at = c.ccursor.index;
+        if local.x < r.min.x && at > 0 {
+            at -= 1;
+        }
+        if local.y < r.min.y || local.y > r.max.y {
+            return;
+        }
+        let now = ctx.input(|i| i.time);
+        let stale = match &self.hover {
+            Some((a, len, h, t)) => *a != at || *len != self.text.len() || (h.as_ref().is_some_and(|h| h.incomplete) && now - t > 0.3),
+            None => true,
+        };
+        if stale {
+            let h = assist.hover(&self.text, at);
+            if h.as_ref().is_some_and(|h| h.incomplete) {
+                ctx.request_repaint_after(std::time::Duration::from_millis(300));
+            }
+            self.hover = Some((at, self.text.len(), h, now));
+        }
+        let Some((_, _, Some(h), _)) = &self.hover else { return };
+        egui::show_tooltip_at_pointer(ctx, ui.layer_id(), id.with("hover"), |ui| {
+            let (glyph, col) = kind_icon(h.kind);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(glyph).color(col));
+                ui.label(RichText::new(&h.title).monospace().strong());
+                if !h.detail.is_empty() {
+                    ui.label(RichText::new(&h.detail).weak());
+                }
+            });
+            if !h.rows.is_empty() {
+                ui.separator();
+                const MAX: usize = 25;
+                egui::Grid::new(id.with("hover-rows")).num_columns(2).spacing([16.0, 2.0]).show(ui, |ui| {
+                    for (n, d) in h.rows.iter().take(MAX) {
+                        ui.label(RichText::new(n).monospace());
+                        ui.label(RichText::new(d).weak());
+                        ui.end_row();
+                    }
+                });
+                if h.rows.len() > MAX {
+                    ui.label(RichText::new(format!("… {} more", h.rows.len() - MAX)).weak());
+                }
+            }
+        });
     }
 }
 
