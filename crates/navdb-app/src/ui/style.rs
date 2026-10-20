@@ -59,8 +59,7 @@ pub fn kind_icon(_k: DbKind) -> &'static str {
     ph::DATABASE
 }
 
-/// Product logo for a database kind: Simple Icons (CC0) where available,
-/// otherwise a database glyph in the product colour.
+/// Product logo for a database kind, in its original colours (see assets/logos/SOURCES.md).
 pub fn kind_logo(k: DbKind, size: f32) -> egui::Image<'static> {
     let src = match k {
         DbKind::MySql => egui::include_image!("../../assets/logos/mysql.svg"),
