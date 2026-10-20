@@ -168,7 +168,7 @@ Packaging scripts:
 
 ```bash
 scripts/bundle-macos.sh target/release/navdb dist          # → dist/NavDB Studio.app
-scripts/package-linux.sh target/release/navdb dist 0.1.0   # → .tar.gz + .deb
+scripts/package-linux.sh target/release/navdb dist 0.1.1   # → .tar.gz + .deb
 ```
 
 Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds every platform and publishes a GitHub Release.

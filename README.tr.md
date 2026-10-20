@@ -168,7 +168,7 @@ Paketleme betikleri:
 
 ```bash
 scripts/bundle-macos.sh target/release/navdb dist          # → dist/NavDB Studio.app
-scripts/package-linux.sh target/release/navdb dist 0.1.0   # → .tar.gz + .deb
+scripts/package-linux.sh target/release/navdb dist 0.1.1   # → .tar.gz + .deb
 ```
 
 `v*` biçiminde bir etiket (tag) gönderildiğinde [`.github/workflows/release.yml`](.github/workflows/release.yml) çalışır, tüm platformları derler ve bir GitHub Release yayınlar.
