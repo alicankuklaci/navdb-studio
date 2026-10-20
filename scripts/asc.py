@@ -3,6 +3,8 @@
 
     scripts/asc.py signing        bundle ID, installer certificate, provisioning profile
     scripts/asc.py subscriptions  Pro subscription group, products, prices, free trial
+    scripts/asc.py listing        store page text, categories, age rating, free price,
+                                  screenshots and the latest build (packaging/appstore/)
 
 Needs ASC_KEY_ID, ASC_ISSUER_ID and the AuthKey_<id>.p8 file (ASC_KEY_FILE,
 default ~/.config/appstoreconnect/AuthKey_<id>.p8). Requires PyJWT and
@@ -10,6 +12,7 @@ cryptography. Every step is idempotent: existing objects are reused.
 """
 
 import base64
+import hashlib
 import json
 import os
 import subprocess
@@ -123,7 +126,6 @@ def distribution_certificate_id():
     """The App Store Connect id of the Apple Distribution certificate in the keychain."""
     out = subprocess.run(["security", "find-certificate", "-a", "-c", "Apple Distribution", "-Z"], capture_output=True, text=True).stdout
     local = {l.split(":")[1].strip().upper() for l in out.splitlines() if l.startswith("SHA-1 hash:")}
-    import hashlib
     for c in get_all("/v1/certificates?filter[certificateType]=DISTRIBUTION&limit=200"):
         content = base64.b64decode(c["attributes"]["certificateContent"])
         if hashlib.sha1(content).hexdigest().upper() in local:
@@ -227,6 +229,110 @@ def set_prices(sub, usd):
                                                                          "subscriptionPricePoint": rel("subscriptionPricePoints", pp)}}})
 
 
+LISTING = ROOT / "packaging/appstore/listing.json"
+SCREENSHOTS = ROOT / "packaging/appstore/screenshots"
+
+
+def version_string():
+    import re
+    return re.search(r'^version = "(.*)"', (ROOT / "Cargo.toml").read_text(), re.M).group(1)
+
+
+def localization(items, locale):
+    return next((l for l in items if l["attributes"]["locale"] == locale), None)
+
+
+def listing():
+    meta = json.loads(LISTING.read_text())
+    loc = meta["locale"]
+    app = app_id()
+    api("PATCH", f"/v1/apps/{app}", {"data": {"type": "apps", "id": app, "attributes": {
+        "contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT", "primaryLocale": loc}}})
+
+    # app info: name, subtitle, privacy policy, categories, age rating
+    info = next(i for i in get_all(f"/v1/apps/{app}/appInfos") if i["attributes"].get("appStoreState") != "READY_FOR_SALE")
+    api("PATCH", f"/v1/appInfos/{info['id']}", {"data": {"type": "appInfos", "id": info["id"], "relationships": {
+        "primaryCategory": rel("appCategories", meta["primaryCategory"]),
+        "secondaryCategory": rel("appCategories", meta["secondaryCategory"])}}})
+    attrs = {"name": meta["name"], "subtitle": meta["subtitle"], "privacyPolicyUrl": meta["privacyPolicyUrl"]}
+    l = localization(get_all(f"/v1/appInfos/{info['id']}/appInfoLocalizations"), loc)
+    if l:
+        api("PATCH", f"/v1/appInfoLocalizations/{l['id']}", {"data": {"type": "appInfoLocalizations", "id": l["id"], "attributes": attrs}})
+    else:
+        api("POST", "/v1/appInfoLocalizations", {"data": {"type": "appInfoLocalizations", "attributes": {"locale": loc, **attrs},
+                                                         "relationships": {"appInfo": rel("appInfos", info["id"])}}})
+    age = api("GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")["data"]
+    none = "NONE"
+    api("PATCH", f"/v1/ageRatingDeclarations/{age['id']}", {"data": {"type": "ageRatingDeclarations", "id": age["id"], "attributes": {
+        "alcoholTobaccoOrDrugUseOrReferences": none, "contests": none, "gamblingSimulated": none, "horrorOrFearThemes": none,
+        "matureOrSuggestiveThemes": none, "medicalOrTreatmentInformation": none, "profanityOrCrudeHumor": none,
+        "sexualContentGraphicAndNudity": none, "sexualContentOrNudity": none, "violenceCartoonOrFantasy": none,
+        "violenceRealistic": none, "gunsOrOtherWeapons": none, "violenceRealisticProlongedGraphicOrSadistic": none,
+        "gambling": False, "unrestrictedWebAccess": False, "lootBox": False,
+        "messagingAndChat": False, "userGeneratedContent": False, "parentalControls": False,
+        "ageAssurance": False, "advertising": False, "healthOrWellnessTopics": False}}}, missing_ok=False)
+    print("app info, categories and age rating set")
+
+    free_price(app)
+
+    # the version being prepared, renamed to the build's version
+    versions = get_all(f"/v1/apps/{app}/appStoreVersions?filter[platform]=MAC_OS")
+    ver = next(v for v in versions if v["attributes"]["appStoreState"] in ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED"))
+    api("PATCH", f"/v1/appStoreVersions/{ver['id']}", {"data": {"type": "appStoreVersions", "id": ver["id"], "attributes": {
+        "versionString": version_string(), "copyright": meta["copyright"]}}})
+    attrs = {k: meta[k] for k in ("description", "keywords", "promotionalText", "supportUrl", "marketingUrl")}
+    l = localization(get_all(f"/v1/appStoreVersions/{ver['id']}/appStoreVersionLocalizations"), loc)
+    if l:
+        api("PATCH", f"/v1/appStoreVersionLocalizations/{l['id']}", {"data": {"type": "appStoreVersionLocalizations", "id": l["id"], "attributes": attrs}})
+    else:
+        l = api("POST", "/v1/appStoreVersionLocalizations", {"data": {"type": "appStoreVersionLocalizations", "attributes": {"locale": loc, **attrs},
+                                                                    "relationships": {"appStoreVersion": rel("appStoreVersions", ver["id"])}}})["data"]
+    print("version", version_string(), "text set")
+    screenshots(l["id"])
+
+    builds = get_all(f"/v1/builds?filter[app]={app}&filter[processingState]=VALID&sort=-uploadedDate&limit=1")
+    if builds:
+        api("PATCH", f"/v1/appStoreVersions/{ver['id']}/relationships/build", {"data": {"type": "builds", "id": builds[0]["id"]}})
+        print("build attached:", builds[0]["attributes"]["version"])
+
+
+def free_price(app):
+    points = get_all(f"/v1/apps/{app}/appPricePoints?filter[territory]=USA&limit=200")
+    zero = next(p for p in points if float(p["attributes"]["customerPrice"]) == 0)
+    api("POST", "/v1/appPriceSchedules", {
+        "data": {"type": "appPriceSchedules", "relationships": {
+            "app": rel("apps", app), "baseTerritory": rel("territories", "USA"),
+            "manualPrices": {"data": [{"type": "appPrices", "id": "${price}"}]}}},
+        "included": [{"type": "appPrices", "id": "${price}", "attributes": {"startDate": None},
+                      "relationships": {"appPricePoint": rel("appPricePoints", zero["id"])}}]})
+    print("price: free (Pro is sold as in-app subscriptions)")
+
+
+def screenshots(loc_id):
+    sets = get_all(f"/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets")
+    desk = next((s for s in sets if s["attributes"]["screenshotDisplayType"] == "APP_DESKTOP"), None)
+    if desk:
+        for old in get_all(f"/v1/appScreenshotSets/{desk['id']}/appScreenshots"):
+            api("DELETE", f"/v1/appScreenshots/{old['id']}")
+    else:
+        desk = api("POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets", "attributes": {"screenshotDisplayType": "APP_DESKTOP"},
+                                                             "relationships": {"appStoreVersionLocalization": rel("appStoreVersionLocalizations", loc_id)}}})["data"]
+    files = sorted(SCREENSHOTS.glob("*.png"))
+    for f in files:
+        data = f.read_bytes()
+        shot = api("POST", "/v1/appScreenshots", {"data": {"type": "appScreenshots", "attributes": {"fileName": f.name, "fileSize": len(data)},
+                                                          "relationships": {"appScreenshotSet": rel("appScreenshotSets", desk["id"])}}})["data"]
+        for op in shot["attributes"]["uploadOperations"]:
+            part = data[op["offset"]:op["offset"] + op["length"]]
+            req = urllib.request.Request(op["url"], method=op["method"], data=part)
+            for h in op["requestHeaders"]:
+                req.add_header(h["name"], h["value"])
+            urllib.request.urlopen(req).read()
+        api("PATCH", f"/v1/appScreenshots/{shot['id']}", {"data": {"type": "appScreenshots", "id": shot["id"], "attributes": {
+            "uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
+    print(f"{len(files)} screenshots uploaded")
+
+
 def main():
     if not (KEY_ID and ISSUER and KEY_FILE.exists()):
         raise SystemExit("set ASC_KEY_ID and ASC_ISSUER_ID (and ASC_KEY_FILE if the .p8 is elsewhere)")
@@ -237,6 +343,8 @@ def main():
         profile(b)
     elif cmd == "subscriptions":
         subscriptions()
+    elif cmd == "listing":
+        listing()
     else:
         raise SystemExit(__doc__)
 
