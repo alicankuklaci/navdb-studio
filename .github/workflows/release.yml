@@ -21,13 +21,20 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             os: windows-2022
+            arch: x64
           - target: aarch64-apple-darwin
             os: macos-14
+            arch: arm64
           - target: x86_64-apple-darwin
             os: macos-14
-          # oldest supported runner: keeps the glibc requirement of the binary low
+            arch: x64
+          # oldest supported runners: keep the glibc requirement of the binary low
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
+            arch: x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+            arch: arm64
     runs-on: ${{ matrix.os }}
     env:
       MACOSX_DEPLOYMENT_TARGET: "11.0"
@@ -58,29 +65,36 @@ jobs:
       - name: Build
         run: cargo build --release --locked -p navdb-app --target ${{ matrix.target }}
 
+      # asset names carry no version so README links to releases/latest/download/<name> stay valid
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $name = "navdb-studio-${{ steps.ver.outputs.version }}-windows-x86_64"
+          $name = "NavDB-Studio-windows-${{ matrix.arch }}"
           New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/navdb.exe" "dist/$name/"
-          Copy-Item README.md "dist/$name/"
-          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
+          Copy-Item "target/${{ matrix.target }}/release/navdb.exe" "dist/$name/NavDB Studio.exe"
+          Copy-Item README.md, LICENSE-MIT, LICENSE-APACHE "dist/$name/"
+          Compress-Archive -Path "dist/$name/*" -DestinationPath "dist/$name.zip"
+          Remove-Item -Recurse "dist/$name"
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
-          case "${{ matrix.target }}" in aarch64-*) arch=arm64 ;; *) arch=x86_64 ;; esac
-          name="navdb-studio-${{ steps.ver.outputs.version }}-macos-$arch"
-          mkdir -p "dist/$name"
-          scripts/bundle-macos.sh "target/${{ matrix.target }}/release/navdb" "dist/$name" "${{ steps.ver.outputs.version }}"
-          ditto -c -k --keepParent "dist/$name/NavDB Studio.app" "dist/$name.zip"
-          hdiutil create -volname "NavDB Studio" -srcfolder "dist/$name" -ov -format UDZO "dist/$name.dmg"
+          name="NavDB-Studio-macos-${{ matrix.arch }}"
+          stage="$(mktemp -d)/$name"
+          mkdir -p "$stage"
+          scripts/bundle-macos.sh "target/${{ matrix.target }}/release/navdb" "$stage" "${{ steps.ver.outputs.version }}"
+          ditto -c -k --keepParent "$stage/NavDB Studio.app" "dist/$name.zip"
+          ln -s /Applications "$stage/Applications"
+          hdiutil create -volname "NavDB Studio" -srcfolder "$stage" -ov -format UDZO "dist/$name.dmg"
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
-        run: scripts/package-linux.sh "target/${{ matrix.target }}/release/navdb" dist "${{ steps.ver.outputs.version }}" amd64
+        run: |
+          case "${{ matrix.arch }}" in x64) deb=amd64 ;; *) deb=arm64 ;; esac
+          scripts/package-linux.sh "target/${{ matrix.target }}/release/navdb" dist "${{ steps.ver.outputs.version }}" $deb
+          mv dist/navdb-studio-*-linux-*.tar.gz "dist/NavDB-Studio-linux-${{ matrix.arch }}.tar.gz"
+          mv dist/navdb-studio_*.deb "dist/NavDB-Studio-linux-${{ matrix.arch }}.deb"
 
       - uses: actions/upload-artifact@v4
         with:

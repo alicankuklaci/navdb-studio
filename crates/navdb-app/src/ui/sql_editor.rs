@@ -373,7 +373,11 @@ impl SqlEditor {
                             return;
                         }
                         let row_h = font.size + 8.0;
-                        egui::ScrollArea::vertical().max_height(row_h * 10.0 + 2.0).auto_shrink([true, true]).show(ui, |ui| {
+                        // height from the item count, not last frame's content: the list grows when
+                        // catalog data arrives and egui wouldn't repaint to catch up
+                        let h = p.items.len().min(10) as f32 * row_h;
+                        egui::ScrollArea::vertical().max_height(h).min_scrolled_height(h).auto_shrink([true, true]).show(ui, |ui| {
+                            ui.spacing_mut().item_spacing.y = 0.0;
                             ui.set_width(width);
                             for (i, it) in p.items.iter().enumerate() {
                                 let (rect, r) = ui.allocate_exact_size(egui::vec2(width, row_h), egui::Sense::click());

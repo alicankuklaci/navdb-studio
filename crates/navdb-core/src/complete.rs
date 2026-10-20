@@ -127,13 +127,17 @@ pub fn complete(text: &str, cursor: usize, dialect: Dialect, cat: &mut dyn Catal
     if !explicit && qual.is_empty() && prefix.chars().count() < 2 {
         return None;
     }
+    // `AS name`: the user is naming something new
+    if qual.is_empty() && before.last().is_some_and(|t| t.is_kw("AS")) {
+        return None;
+    }
 
     let refs_toks: Vec<Tok> = seg.iter().enumerate().filter(|(i, _)| Some(*i) != word_idx).map(|(_, t)| t.clone()).collect();
     let ctes = parse_ctes(&refs_toks, cat);
     let refs = parse_refs(&refs_toks, &ctes, cat);
     let pos = position(before);
 
-    let mut b = Builder { prefix: prefix.clone(), dialect, quoted, items: Vec::new(), incomplete: false };
+    let mut b = Builder { prefix: prefix.clone(), dialect, quoted, items: Vec::new(), incomplete: false, exact: false };
 
     if !qual.is_empty() {
         complete_qualified(&mut b, &qual, pos, &refs, &ctes, cat);
@@ -202,6 +206,10 @@ pub fn complete(text: &str, cursor: usize, dialect: Dialect, cat: &mut dyn Catal
                 add_functions(&mut b, dialect, -10);
             }
         }
+    }
+    // a complete name was typed: Enter must not swap it for a longer fuzzy match
+    if b.exact && !explicit {
+        return None;
     }
     for it in extra {
         if let Some(s) = fuzzy_score(&it.label, &b.prefix) {
@@ -967,11 +975,17 @@ struct Builder {
     quoted: bool,
     items: Vec<Item>,
     incomplete: bool,
+    /// Some candidate equals the typed word (it is never offered itself).
+    exact: bool,
 }
 
 impl Builder {
     fn add(&mut self, name: &str, kind: ItemKind, detail: &str, boost: i32) {
-        if name.is_empty() || (!self.quoted && name.eq_ignore_ascii_case(&self.prefix)) {
+        if name.is_empty() {
+            return;
+        }
+        if !self.quoted && name.eq_ignore_ascii_case(&self.prefix) {
+            self.exact = true;
             return;
         }
         let Some(s) = fuzzy_score(name, &self.prefix) else { return };
@@ -980,7 +994,11 @@ impl Builder {
     }
 
     fn add_kw(&mut self, kw: &str, boost: i32) {
-        if self.quoted || kw.eq_ignore_ascii_case(&self.prefix) {
+        if self.quoted {
+            return;
+        }
+        if kw.eq_ignore_ascii_case(&self.prefix) {
+            self.exact = true;
             return;
         }
         if let Some(s) = fuzzy_score(kw, &self.prefix) {
@@ -1488,6 +1506,15 @@ mod tests {
         // Enter after a complete word must insert a newline, not "accept" the same word
         let v = run("SELECT * FROM users|", false);
         assert!(!v.iter().any(|i| i.label == "users"));
+        // ...nor a longer fuzzy match of it (`id` must not become `user_id` on Enter)
+        assert!(run("SELECT o.id| FROM orders o", false).is_empty());
+        assert!(!run("SELECT o.id| FROM orders o", true).is_empty());
+    }
+
+    #[test]
+    fn nothing_after_as() {
+        assert!(run("SELECT COUNT(*) AS total|", false).is_empty());
+        assert!(run("SELECT * FROM users AS us|", false).is_empty());
     }
 
     #[test]
