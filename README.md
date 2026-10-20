@@ -45,17 +45,15 @@ Prebuilt binaries for every release are on the [**Releases page**](https://githu
 
 Each release also ships a `SHA256SUMS.txt` file for verifying downloads.
 
-<details>
-<summary><b>First launch: "unidentified developer" / SmartScreen warnings</b></summary>
-
-The binaries are not yet signed with a paid code-signing certificate, so the OS asks for confirmation the first time:
-
-- **macOS:** open the `.dmg`, drag *NavDB Studio* to *Applications*, then **right-click the app → Open → Open**. Alternatively run
-  `xattr -dr com.apple.quarantine "/Applications/NavDB Studio.app"`.
-- **Windows:** in the SmartScreen dialog click **More info → Run anyway**.
-- **Linux:** no extra step is needed. File dialogs use `xdg-desktop-portal`, which most desktops already have installed.
-
-</details>
+> [!IMPORTANT]
+> **First launch on macOS:** the app is not yet notarized by Apple, so macOS shows *"Apple could not verify 'NavDB Studio' is free of malware…"*. This is expected; the build is produced from this repository by [GitHub Actions](https://github.com/alicankuklaci/navdb-studio/actions/workflows/release.yml). To open it once:
+>
+> 1. Drag *NavDB Studio* from the `.dmg` to *Applications* and try to open it. Click **Done** in the warning.
+> 2. Open **System Settings → Privacy & Security**, scroll down to *"NavDB Studio" was blocked…* and click **Open Anyway**.
+>
+> Or run this once in Terminal: `xattr -dr com.apple.quarantine "/Applications/NavDB Studio.app"`
+>
+> **Windows:** in the SmartScreen dialog click **More info → Run anyway**. **Linux:** no extra step is needed.
 
 ## Features
 
