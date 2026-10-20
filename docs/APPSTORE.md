@@ -36,6 +36,21 @@ call sites in `commands.rs`).
    `https://github.com/alicankuklaci/navdb-studio/blob/main/docs/PRIVACY.md`.
    For subscriptions the description must also link the Terms of Use (Apple standard EULA).
 
+`scripts/asc.py signing` does steps 1–3 and `scripts/asc.py subscriptions` step 5 through the
+App Store Connect API (steps 4 and 6 need the web UI).
+
+### Pricing
+
+| Product | Price (US) | Trial |
+|---|---|---|
+| Pro Monthly | $6.99 | 14 days free |
+| Pro Yearly | $49.99 (≈ $4.17/month, 40 % off) | 14 days free |
+
+Chosen against the market in October 2026: DataGrip ≈ $19/month (yearly billing), SQLPro Studio
+$15.99 / $99.99 in-app, Beekeeper Studio $9–14/month, TablePlus $99 one-time, Navicat Premium
+subscription with a 14-day trial. NavDB Studio sits below the paid alternatives with a generous
+free tier; other storefronts use Apple's equalized prices.
+
 ## Each release
 
 ```bash
