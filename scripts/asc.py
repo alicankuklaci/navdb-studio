@@ -186,10 +186,34 @@ def subscriptions():
                                                                                  "description": "Unlimited connections, data sync and automation"},
                                                                   "relationships": {"subscription": rel("subscriptions", sub)}}})
         availability(sub)
-        if not get_all(f"/v1/subscriptions/{sub}/prices?limit=1"):
+        if not api("GET", f"/v1/subscriptions/{sub}/prices?limit=1")["data"]:
             set_prices(sub, usd)
             print(f"  prices set: ${usd} and equalized storefronts")
         free_trial(sub)
+        review_screenshot(sub)
+
+
+def review_screenshot(sub):
+    """The paywall screenshot App Review needs for each subscription."""
+    r = api("GET", f"/v1/subscriptions/{sub}/appStoreReviewScreenshot", missing_ok=True)
+    if r.get("data"):
+        return
+    data = REVIEW_SCREENSHOT.read_bytes()
+    shot = api("POST", "/v1/subscriptionAppStoreReviewScreenshots", {"data": {"type": "subscriptionAppStoreReviewScreenshots",
+                                                                               "attributes": {"fileName": REVIEW_SCREENSHOT.name, "fileSize": len(data)},
+                                                                               "relationships": {"subscription": rel("subscriptions", sub)}}})["data"]
+    upload(shot, data)
+    api("PATCH", f"/v1/subscriptionAppStoreReviewScreenshots/{shot['id']}", {"data": {"type": "subscriptionAppStoreReviewScreenshots", "id": shot["id"],
+                                                                                      "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
+    print("  review screenshot uploaded")
+
+
+def upload(asset, data):
+    for op in asset["attributes"]["uploadOperations"]:
+        req = urllib.request.Request(op["url"], method=op["method"], data=data[op["offset"]:op["offset"] + op["length"]])
+        for h in op["requestHeaders"]:
+            req.add_header(h["name"], h["value"])
+        urllib.request.urlopen(req).read()
 
 
 def free_trial(sub):
@@ -231,6 +255,7 @@ def set_prices(sub, usd):
 
 LISTING = ROOT / "packaging/appstore/listing.json"
 SCREENSHOTS = ROOT / "packaging/appstore/screenshots"
+REVIEW_SCREENSHOT = ROOT / "packaging/appstore/subscription-review.png"
 
 
 def version_string():
@@ -322,12 +347,7 @@ def screenshots(loc_id):
         data = f.read_bytes()
         shot = api("POST", "/v1/appScreenshots", {"data": {"type": "appScreenshots", "attributes": {"fileName": f.name, "fileSize": len(data)},
                                                           "relationships": {"appScreenshotSet": rel("appScreenshotSets", desk["id"])}}})["data"]
-        for op in shot["attributes"]["uploadOperations"]:
-            part = data[op["offset"]:op["offset"] + op["length"]]
-            req = urllib.request.Request(op["url"], method=op["method"], data=part)
-            for h in op["requestHeaders"]:
-                req.add_header(h["name"], h["value"])
-            urllib.request.urlopen(req).read()
+        upload(shot, data)
         api("PATCH", f"/v1/appScreenshots/{shot['id']}", {"data": {"type": "appScreenshots", "id": shot["id"], "attributes": {
             "uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
     print(f"{len(files)} screenshots uploaded")
