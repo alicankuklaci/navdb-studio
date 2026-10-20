@@ -86,7 +86,12 @@ jobs:
           scripts/bundle-macos.sh "target/${{ matrix.target }}/release/navdb" "$stage" "${{ steps.ver.outputs.version }}"
           ditto -c -k --keepParent "$stage/NavDB Studio.app" "dist/$name.zip"
           ln -s /Applications "$stage/Applications"
-          hdiutil create -volname "NavDB Studio" -srcfolder "$stage" -ov -format UDZO "dist/$name.dmg"
+          # hdiutil on hosted runners sometimes fails with "Resource busy"; retry a few times
+          for i in 1 2 3 4 5; do
+            hdiutil create -volname "NavDB Studio" -srcfolder "$stage" -ov -format UDZO "dist/$name.dmg" && break
+            [ "$i" = 5 ] && exit 1
+            sleep $((i * 5))
+          done
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
