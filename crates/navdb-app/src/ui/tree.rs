@@ -251,7 +251,7 @@ fn database_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionC
     let is_default = c.kind.base() == DbKind::Sqlite || c.default_database() == db;
     let cs = load_state(ui, id, false);
     let header = cs.show_header(ui, |ui| {
-        let resp = ui.selectable_label(selected, format!("{} {}", icon::DATABASE, db));
+        let resp = ui.selectable_label(selected, style::icon_text(ui, &format!("{} {}", icon::DATABASE, db), None));
         drop_focus(&resp);
         if resp.clicked() {
             st.selection = Selection { conn: Some(c.id.clone()), scope: Some(scope.clone()), kind: Some(ObjectKind::Table), object: None };
@@ -283,7 +283,7 @@ fn database_node(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionC
                 let sel = st.selection.scope.as_ref() == Some(&sc) && st.selection.conn.as_deref() == Some(&c.id) && st.selection.kind.is_none();
                 CollapsingState::load_with_default_open(ui.ctx(), sid, Some(s.as_str()) == c.kind.default_schema())
                     .show_header(ui, |ui| {
-                        let r = ui.selectable_label(sel, format!("{} {}", icon::SCHEMA, s));
+                        let r = ui.selectable_label(sel, style::icon_text(ui, &format!("{} {}", icon::SCHEMA, s), None));
                         drop_focus(&r);
                         if r.clicked() {
                             st.selection = Selection { conn: Some(c.id.clone()), scope: Some(sc.clone()), kind: Some(ObjectKind::Table), object: None };
@@ -428,7 +428,7 @@ fn kind_groups(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionCon
                 .and_then(|l| l.ready())
                 .map(|v| format!(" ({})", v.len()))
                 .unwrap_or_default();
-            let r = ui.selectable_label(sel, format!("{} {}{}", crate::ui::style::object_icon(kind), kind.label(), count));
+            let r = ui.selectable_label(sel, style::icon_text(ui, &format!("{} {}{}", style::object_icon(kind), kind.label(), count), None));
             drop_focus(&r);
             if r.clicked() {
                 st.selection = Selection { conn: Some(c.id.clone()), scope: Some(scope.clone()), kind: Some(kind), object: None };
@@ -491,7 +491,7 @@ fn kind_groups(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionCon
         let gid = ui.make_persistent_id(("queries", &c.id, scope));
         CollapsingState::load_with_default_open(ui.ctx(), gid, false)
             .show_header(ui, |ui| {
-                let r = ui.label(format!("{} Queries ({})", icon::QUERY, queries.len()));
+                let r = ui.label(style::icon_text(ui, &format!("{} Queries ({})", icon::QUERY, queries.len()), None));
                 r.context_menu(|ui| {
                     if ui.button("New Query").clicked() {
                         cmd::new_query(st, Some(c.id.clone()), Some(scope.clone()));
@@ -501,7 +501,7 @@ fn kind_groups(ui: &mut Ui, st: &mut AppState, ts: &TreeState, c: &ConnectionCon
             })
             .body(|ui| {
                 for (qid, name) in queries.iter().filter(|(_, n)| matches(&ts.filter, n)) {
-                    let r = ui.selectable_label(false, format!("{} {}", icon::QUERY, name));
+                    let r = ui.selectable_label(false, style::icon_text(ui, &format!("{} {}", icon::QUERY, name), None));
                     drop_focus(&r);
                     if r.double_clicked() {
                         cmd::open_saved_query(st, qid);
@@ -526,7 +526,12 @@ fn object_leaf(ui: &mut Ui, st: &mut AppState, c: &ConnectionConfig, scope: &Sco
     let sel = st.selection.conn.as_deref() == Some(&c.id)
         && st.selection.scope.as_ref() == Some(scope)
         && st.selection.object.as_deref() == Some(name);
-    let r = ui.selectable_label(sel, format!("   {} {}", crate::ui::style::object_icon(kind), name));
+    let r = ui
+        .horizontal(|ui| {
+            ui.add_space(12.0);
+            ui.selectable_label(sel, style::icon_text(ui, &format!("{} {}", style::object_icon(kind), name), None))
+        })
+        .inner;
     drop_focus(&r);
     if r.clicked() {
         st.selection = Selection { conn: Some(c.id.clone()), scope: Some(scope.clone()), kind: Some(kind), object: Some(name.to_string()) };

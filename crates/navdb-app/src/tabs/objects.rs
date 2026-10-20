@@ -95,7 +95,7 @@ impl Tab for ObjectsTab {
         // toolbar
         ui.horizontal(|ui| {
             for k in &kinds {
-                if ui.selectable_label(*k == kind, format!("{} {}", crate::ui::style::object_icon(*k), k.label())).clicked() {
+                if ui.selectable_label(*k == kind, ui::style::icon_text(ui, &format!("{} {}", ui::style::object_icon(*k), k.label()), None)).clicked() {
                     st.selection.kind = Some(*k);
                     st.selection.object = None;
                     self.selected.clear();
@@ -166,7 +166,7 @@ impl Tab for ObjectsTab {
                 ui.horizontal_wrapped(|ui| {
                     for o in &list {
                         let sel = self.selected.contains(&o.name);
-                        let r = ui.selectable_label(sel, format!("{} {}", crate::ui::style::object_icon(kind), o.name));
+                        let r = ui.selectable_label(sel, ui::style::icon_text(ui, &format!("{} {}", ui::style::object_icon(kind), o.name), None));
                         if r.clicked() {
                             let m = ui.input(|i| i.modifiers);
                             clicked = Some((o.name.clone(), m.command, m.shift));
@@ -242,7 +242,7 @@ impl Tab for ObjectsTab {
                     row.set_selected(self.selected.contains(&o.name));
                     let mut resps = Vec::new();
                     resps.push(row.col(|ui| {
-                        ui.label(format!("{} {}", crate::ui::style::object_icon(kind), o.name));
+                        ui.label(ui::style::icon_text(ui, &format!("{} {}", ui::style::object_icon(kind), o.name), None));
                     }).1);
                     if show_rows {
                         resps.push(row.col(|ui| {

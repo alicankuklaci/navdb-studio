@@ -127,9 +127,76 @@ pub fn object_icon(k: ObjectKind) -> &'static str {
     }
 }
 
+const FILL_FAMILY: &str = "phosphor-fill";
+
+/// Filled variant of the icon font (same code points as the outline icons).
+pub fn fill_font(size: f32) -> egui::FontId {
+    egui::FontId::new(size, egui::FontFamily::Name(FILL_FAMILY.into()))
+}
+
+/// Accent colour of an icon glyph, so the same object reads the same everywhere.
+pub fn icon_color(glyph: &str) -> Option<Color32> {
+    let rgb = |r, g, b| Some(Color32::from_rgb(r, g, b));
+    match glyph {
+        ph::TABLE => rgb(0x3B, 0x82, 0xF6),
+        ph::EYE => rgb(0x14, 0xA8, 0x9A),
+        ph::STACK => rgb(0x0E, 0x9F, 0xB8),
+        ph::FUNCTION => rgb(0xA2, 0x55, 0xF0),
+        ph::GEAR_SIX => rgb(0xE0, 0x7A, 0x1F),
+        ph::LIGHTNING => rgb(0xE8, 0xA3, 0x0C),
+        ph::CLOCK => rgb(0xE0, 0x4E, 0x8A),
+        ph::LIST_NUMBERS => rgb(0x5B, 0x7C, 0x99),
+        ph::LIST_MAGNIFYING_GLASS => rgb(0x22, 0xA0, 0x5A),
+        ph::KEY => rgb(0xD9, 0x9A, 0x06),
+        ph::DATABASE => rgb(0xE0, 0x9A, 0x2E),
+        ph::FOLDER_SIMPLE => rgb(0xE8, 0xB0, 0x3A),
+        ph::PLUGS_CONNECTED => rgb(0x10, 0xA3, 0x7F),
+        ph::NOTE_PENCIL | ph::FILE_SQL => rgb(0x4F, 0x6B, 0xED),
+        ph::USER => rgb(0xF0, 0x8C, 0x1A),
+        ph::DOTS_THREE_CIRCLE => rgb(0x6B, 0x7A, 0x90),
+        ph::ARCHIVE => rgb(0xD9, 0x6A, 0x2B),
+        ph::ROBOT => rgb(0x0E, 0x9A, 0xD8),
+        ph::TREE_STRUCTURE => rgb(0x7C, 0x5C, 0xF0),
+        ph::CHART_BAR => rgb(0x16, 0xA3, 0x4A),
+        ph::PULSE => rgb(0xE5, 0x48, 0x4D),
+        ph::TERMINAL_WINDOW => rgb(0x47, 0x55, 0x69),
+        ph::CLOCK_COUNTER_CLOCKWISE => rgb(0x64, 0x74, 0x8B),
+        ph::PENCIL_SIMPLE => rgb(0x25, 0x8E, 0xD8),
+        _ => None,
+    }
+}
+
+/// Two-tone icon: a tinted filled shape under the outline.
+pub fn paint_duotone(painter: &egui::Painter, center: egui::Pos2, glyph: &str, size: f32, color: Color32) {
+    painter.text(center, egui::Align2::CENTER_CENTER, glyph, fill_font(size), color.gamma_multiply(0.22));
+    painter.text(center, egui::Align2::CENTER_CENTER, glyph, egui::FontId::proportional(size), color);
+}
+
+/// Label whose leading icon glyph is drawn filled in its accent colour.
+pub fn icon_text(ui: &egui::Ui, text: &str, size: Option<f32>) -> egui::text::LayoutJob {
+    let body = ui.style().text_styles.get(&egui::TextStyle::Body).cloned().unwrap_or_default();
+    let font = egui::FontId::new(size.unwrap_or(body.size), body.family);
+    let mut job = egui::text::LayoutJob::default();
+    let plain = |font: egui::FontId| egui::TextFormat { font_id: font, color: Color32::PLACEHOLDER, valign: egui::Align::Center, ..Default::default() };
+    let first = text.chars().next().filter(|c| ('\u{E000}'..='\u{F8FF}').contains(c));
+    match first {
+        Some(c) => {
+            let glyph = c.to_string();
+            let color = icon_color(&glyph).unwrap_or(ui.visuals().text_color());
+            let f = egui::TextFormat { font_id: fill_font(font.size), color, valign: egui::Align::Center, ..Default::default() };
+            job.append(&glyph, 0.0, f);
+            job.append(&text[c.len_utf8()..], 0.0, plain(font));
+        }
+        None => job.append(text, 0.0, plain(font)),
+    }
+    job
+}
+
 pub fn install_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+    fonts.font_data.insert(FILL_FAMILY.into(), egui_phosphor::Variant::Fill.font_data().into());
+    fonts.families.insert(egui::FontFamily::Name(FILL_FAMILY.into()), vec![FILL_FAMILY.into(), "Ubuntu-Light".into()]);
     // Hack covers arrows/symbols (→ ↵ ⇶) that Ubuntu lacks
     if let Some(list) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
         list.push("Hack".to_owned());

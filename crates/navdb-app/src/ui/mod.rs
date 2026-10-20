@@ -20,13 +20,8 @@ pub fn toolbar_button(ui: &mut Ui, icon: &str, label: &str, selected: bool) -> e
         ui.painter().rect_filled(rect.shrink(1.0), 6.0, visuals.bg_fill);
     }
     let color = if selected { ui.visuals().selection.stroke.color } else { ui.visuals().text_color() };
-    ui.painter().text(
-        rect.center_top() + egui::vec2(0.0, 16.0),
-        egui::Align2::CENTER_CENTER,
-        icon,
-        egui::FontId::proportional(20.0),
-        color,
-    );
+    let accent = style::icon_color(icon).unwrap_or(color);
+    style::paint_duotone(ui.painter(), rect.center_top() + egui::vec2(0.0, 17.0), icon, 23.0, accent);
     ui.painter().text(
         rect.center_bottom() - egui::vec2(0.0, 10.0),
         egui::Align2::CENTER_CENTER,

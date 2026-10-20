@@ -653,7 +653,7 @@ impl FindInDbTab {
 
 impl Tab for FindInDbTab {
     fn title(&self) -> String {
-        format!("🔍 Find - {}", self.scope.display())
+        format!("{} Find - {}", crate::ui::style::icon::EXPLAIN, self.scope.display())
     }
 
     fn key(&self) -> String {

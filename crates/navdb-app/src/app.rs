@@ -441,7 +441,7 @@ impl NavApp {
             ui.horizontal(|ui| {
                 let mut close = None;
                 for (i, t) in self.tabs.iter().enumerate() {
-                    let title = if t.dirty() { format!("■ {}", t.title()) } else { t.title() };
+                    let title = if t.dirty() { format!("{} ●", t.title()) } else { t.title() };
                     let selected = i == self.active;
                     let frame = egui::Frame::new()
                         .fill(if selected { ui.visuals().selection.bg_fill } else { ui.visuals().faint_bg_color })
@@ -449,7 +449,7 @@ impl NavApp {
                         .inner_margin(egui::Margin::symmetric(8, 3));
                     frame.show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            let r = ui.add(egui::Label::new(RichText::new(title).size(12.5)).sense(egui::Sense::click()).selectable(false));
+                            let r = ui.add(egui::Label::new(ui::style::icon_text(ui, &title, Some(12.5))).sense(egui::Sense::click()).selectable(false));
                             if r.clicked() {
                                 self.active = i;
                             }
