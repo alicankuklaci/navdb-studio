@@ -31,5 +31,9 @@ rfd = "0.15"
 uuid = { version = "1", features = ["v4"] }
 rand = "0.8"
 
+# Direct3D/Vulkan first on Windows: many VMs, RDP sessions and stock drivers only offer OpenGL 1.1
+[target.'cfg(windows)'.dependencies]
+eframe = { version = "0.31", default-features = false, features = ["wgpu"] }
+
 [build-dependencies]
 winresource = "0.1"

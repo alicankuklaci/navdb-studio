@@ -1,0 +1,6 @@
+# Link the C/C++ runtime statically so navdb.exe runs without the Visual C++ Redistributable
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
