@@ -8,9 +8,9 @@
 
 Navicat-style workflow, written from scratch in Rust. One app for MySQL, PostgreSQL, SQLite, SQL Server, Oracle, MongoDB, Redis, ClickHouse, DuckDB, Cassandra, Elasticsearch and many more.
 
-[![CI](https://github.com/{{REPO}}/actions/workflows/ci.yml/badge.svg)](https://github.com/{{REPO}}/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/{{REPO}}?sort=semver)](https://github.com/{{REPO}}/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/{{REPO}}/total)](https://github.com/{{REPO}}/releases)
+[![CI](https://github.com/alicankuklaci/navdb-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/alicankuklaci/navdb-studio/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/alicankuklaci/navdb-studio?sort=semver)](https://github.com/alicankuklaci/navdb-studio/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/alicankuklaci/navdb-studio/total)](https://github.com/alicankuklaci/navdb-studio/releases)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 ![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
@@ -32,16 +32,16 @@ Navicat-style workflow, written from scratch in Rust. One app for MySQL, Postgre
 
 ## Download
 
-Prebuilt binaries for every release are on the [**Releases page**](https://github.com/{{REPO}}/releases/latest).
+Prebuilt binaries for every release are on the [**Releases page**](https://github.com/alicankuklaci/navdb-studio/releases/latest).
 
 | Platform | Download | Notes |
 |---|---|---|
-| **Windows** 10/11 (x64) | [NavDB-Studio-windows-x64.zip](https://github.com/{{REPO}}/releases/latest/download/NavDB-Studio-windows-x64.zip) | Unzip and run `NavDB Studio.exe` |
-| **macOS** Apple Silicon | [NavDB-Studio-macos-arm64.dmg](https://github.com/{{REPO}}/releases/latest/download/NavDB-Studio-macos-arm64.dmg) | macOS 11 or later |
-| **macOS** Intel | [NavDB-Studio-macos-x64.dmg](https://github.com/{{REPO}}/releases/latest/download/NavDB-Studio-macos-x64.dmg) | macOS 11 or later |
-| **Linux** x64 — Debian/Ubuntu | [NavDB-Studio-linux-x64.deb](https://github.com/{{REPO}}/releases/latest/download/NavDB-Studio-linux-x64.deb) | `sudo apt install ./NavDB-Studio-linux-x64.deb` |
-| **Linux** x64 — any distro | [NavDB-Studio-linux-x64.tar.gz](https://github.com/{{REPO}}/releases/latest/download/NavDB-Studio-linux-x64.tar.gz) | glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 or newer) |
-| **Linux** arm64 | [.deb](https://github.com/{{REPO}}/releases/latest/download/NavDB-Studio-linux-arm64.deb) · [.tar.gz](https://github.com/{{REPO}}/releases/latest/download/NavDB-Studio-linux-arm64.tar.gz) | Raspberry Pi 4/5, ARM servers |
+| **Windows** 10/11 (x64) | [NavDB-Studio-windows-x64.zip](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-windows-x64.zip) | Unzip and run `NavDB Studio.exe` |
+| **macOS** Apple Silicon | [NavDB-Studio-macos-arm64.dmg](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-macos-arm64.dmg) | macOS 11 or later |
+| **macOS** Intel | [NavDB-Studio-macos-x64.dmg](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-macos-x64.dmg) | macOS 11 or later |
+| **Linux** x64 — Debian/Ubuntu | [NavDB-Studio-linux-x64.deb](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-x64.deb) | `sudo apt install ./NavDB-Studio-linux-x64.deb` |
+| **Linux** x64 — any distro | [NavDB-Studio-linux-x64.tar.gz](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-x64.tar.gz) | glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 or newer) |
+| **Linux** arm64 | [.deb](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-arm64.deb) · [.tar.gz](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-arm64.tar.gz) | Raspberry Pi 4/5, ARM servers |
 
 Each release also ships a `SHA256SUMS.txt` file for verifying downloads.
 
@@ -150,8 +150,8 @@ The binaries are not yet signed with a paid code-signing certificate, so the OS 
 You need the stable Rust toolchain from [rustup.rs](https://rustup.rs).
 
 ```bash
-git clone https://github.com/{{REPO}}.git
-cd {{REPO_NAME}}
+git clone https://github.com/alicankuklaci/navdb-studio.git
+cd navdb-studio
 cargo run --release -p navdb-app        # binary: target/release/navdb
 ```
 
@@ -202,7 +202,7 @@ Each connection runs on its own worker thread, so the UI never blocks on the net
 
 Bug reports, feature requests and pull requests are welcome.
 
-1. Open an [issue](https://github.com/{{REPO}}/issues) describing the bug or feature.
+1. Open an [issue](https://github.com/alicankuklaci/navdb-studio/issues) describing the bug or feature.
 2. Fork the repository and create a branch.
 3. Run `cargo test --workspace` and `cargo clippy --workspace` before opening a pull request.
 
