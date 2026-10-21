@@ -3607,7 +3607,7 @@ dependencies = [
 
 [[package]]
 name = "navdb-app"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3627,7 +3627,7 @@ dependencies = [
 
 [[package]]
 name = "navdb-core"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "async-trait",
