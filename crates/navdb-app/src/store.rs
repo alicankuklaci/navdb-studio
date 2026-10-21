@@ -11,7 +11,7 @@ use std::path::Path;
 pub const FREE_CONNECTIONS: usize = 2;
 
 pub const TERMS_URL: &str = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
-pub const PRIVACY_URL: &str = "https://github.com/alicankuklaci/navdb-studio/blob/main/docs/PRIVACY.md";
+pub const PRIVACY_URL: &str = "https://alicankuklaci.github.io/navdb-studio/privacy.html";
 pub const MANAGE_URL: &str = "https://apps.apple.com/account/subscriptions";
 
 #[derive(Clone, Debug, Default, Deserialize)]
