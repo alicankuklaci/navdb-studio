@@ -19,6 +19,12 @@ fn main() {
         if let Err(e) = res.compile() {
             println!("cargo:warning=Windows icon not embedded: {e}");
         }
+        // bind opengl32.dll on first use instead of at process start, so main() can
+        // load the bundled Mesa opengl32.dll first and the WGL imports resolve to it
+        if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+            println!("cargo:rustc-link-arg-bins=/DELAYLOAD:opengl32.dll");
+            println!("cargo:rustc-link-arg-bins=delayimp.lib");
+        }
     }
     if os == "macos" && std::env::var_os("CARGO_FEATURE_APPSTORE").is_some() {
         swift_bridge();

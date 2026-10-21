@@ -63,8 +63,9 @@ fn relaunch_with_software_gl() -> bool {
             .is_ok()
 }
 
-/// Loads the bundled opengl32.dll before the window exists, so the GL loader
-/// later resolves "opengl32.dll" to it instead of the system's OpenGL 1.1.
+/// Loads the bundled opengl32.dll before the window exists. opengl32.dll is
+/// delay-loaded (see build.rs), so the WGL imports and the GL loader later
+/// resolve "opengl32.dll" to this module instead of the system's OpenGL 1.1.
 #[cfg(windows)]
 fn load_software_gl() -> bool {
     use std::os::windows::ffi::OsStrExt;
