@@ -23,20 +23,37 @@ fn main() {
     #[cfg(windows)]
     let software = relaunched && load_software_gl();
     #[cfg(windows)]
+    trace(&format!("start {} pid {} relaunched {relaunched} software {software}", env!("CARGO_PKG_VERSION"), std::process::id()));
+    #[cfg(windows)]
     let renderers: &[eframe::Renderer] = if software { &[eframe::Renderer::Glow] } else { &[eframe::Renderer::Wgpu, eframe::Renderer::Glow] };
     #[cfg(not(windows))]
     let renderers: &[eframe::Renderer] = &[eframe::Renderer::Glow];
     let mut errors = Vec::new();
     for &renderer in renderers {
-        match eframe::run_native("NavDB Studio", options(renderer), Box::new(|cc| Ok(Box::new(app::NavApp::new(cc))))) {
+        match eframe::run_native("NavDB Studio", options(renderer), Box::new(|cc| {
+            #[cfg(windows)]
+            trace(&format!("{renderer} window created"));
+            Ok(Box::new(app::NavApp::new(cc)))
+        })) {
             Ok(()) => return,
-            Err(e) => errors.push(format!("{renderer}: {e}")),
+            Err(e) => {
+                #[cfg(windows)]
+                trace(&format!("{renderer} failed: {e}"));
+                errors.push(format!("{renderer}: {e}"))
+            }
         }
     }
     // no GPU driver (remote desktop, VMs): start again on the bundled software OpenGL
     #[cfg(windows)]
-    if !relaunched && relaunch_with_software_gl() {
-        return;
+    if !relaunched {
+        match relaunch_with_software_gl() {
+            Some(Ok(status)) if status.success() => return,
+            // the relaunch reports its own window errors; only a crash leaves it silent
+            Some(Ok(status)) if status.code() == Some(1) => std::process::exit(1),
+            Some(Ok(status)) => errors.push(format!("software OpenGL: exited with {status}")),
+            Some(Err(e)) => errors.push(format!("software OpenGL: {e}")),
+            None => {}
+        }
     }
     // a GUI-subsystem build has no console, so say why nothing opened
     let msg = format!("NavDB Studio could not open its window.\n\n{}\n\nUpdating the graphics driver usually fixes this.", errors.join("\n"));
@@ -55,12 +72,12 @@ fn software_gl_dll() -> Option<std::path::PathBuf> {
     dll.exists().then_some(dll)
 }
 
+/// Runs the app again on the bundled software OpenGL and waits for it;
+/// `None` when the zip came without the mesa folder.
 #[cfg(windows)]
-fn relaunch_with_software_gl() -> bool {
-    if software_gl_dll().is_none() {
-        return false;
-    }
-    let Ok(exe) = std::env::current_exe() else { return false };
+fn relaunch_with_software_gl() -> Option<std::io::Result<std::process::ExitStatus>> {
+    software_gl_dll()?;
+    let exe = std::env::current_exe().ok()?;
     let mut cmd = std::process::Command::new(exe);
     cmd.args(std::env::args_os().skip(1)).env(SOFTWARE_GL, "1");
     // Mesa otherwise picks its D3D12 driver, which fails the same way without a GPU;
@@ -68,7 +85,20 @@ fn relaunch_with_software_gl() -> bool {
     if std::env::var_os("GALLIUM_DRIVER").is_none() {
         cmd.env("GALLIUM_DRIVER", "llvmpipe");
     }
-    cmd.spawn().is_ok()
+    let status = cmd.status();
+    trace(&format!("software OpenGL relaunch: {status:?}"));
+    Some(status)
+}
+
+/// Appends a startup step to startup.log, the only trace a GUI-subsystem
+/// build leaves when no window opens.
+#[cfg(windows)]
+fn trace(line: &str) {
+    use std::io::Write;
+    let path = navdb_core::config::data_dir().join("startup.log");
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(f, "{} {line}", chrono::Local::now().to_rfc3339());
+    }
 }
 
 /// Loads the bundled opengl32.dll before the window exists. opengl32.dll is
