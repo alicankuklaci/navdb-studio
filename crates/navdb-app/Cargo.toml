@@ -9,9 +9,10 @@ name = "navdb"
 path = "src/main.rs"
 
 [features]
-default = ["oracle", "ssh-tunnel"]
+default = ["oracle", "ssh-tunnel", "duckdb-extensions"]
 oracle = ["navdb-core/oracle"]
 ssh-tunnel = ["navdb-core/ssh-tunnel"]
+duckdb-extensions = ["navdb-core/duckdb-extensions"]
 # Mac App Store build: App Sandbox file access and StoreKit subscriptions.
 # Build with --no-default-features --features appstore (scripts/build-appstore.sh).
 appstore = []

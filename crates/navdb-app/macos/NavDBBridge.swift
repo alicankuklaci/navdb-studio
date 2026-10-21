@@ -20,6 +20,7 @@ final class StoreState: @unchecked Sendable {
     private var _pro = false
     private var _busy = false
     private var _message = ""
+    private var _trialEligible = false
 
     func with<T>(_ f: (StoreState) -> T) -> T {
         lock.lock()
@@ -31,6 +32,7 @@ final class StoreState: @unchecked Sendable {
     var pro: Bool { get { with { $0._pro } } set { with { $0._pro = newValue } } }
     var busy: Bool { get { with { $0._busy } } set { with { $0._busy = newValue } } }
     var message: String { get { with { $0._message } } set { with { $0._message = newValue } } }
+    var trialEligible: Bool { get { with { $0._trialEligible } } set { with { $0._trialEligible = newValue } } }
 }
 
 private func refreshEntitlements() async {
@@ -42,12 +44,21 @@ private func refreshEntitlements() async {
         }
     }
     StoreState.shared.pro = active
+    await refreshTrialEligibility()
+}
+
+/// The free trial is offered once per subscription group; only show it to
+/// people who can still get it.
+private func refreshTrialEligibility() async {
+    guard let sub = StoreState.shared.products.first?.subscription else { return }
+    StoreState.shared.trialEligible = await sub.isEligibleForIntroOffer
 }
 
 private func loadProducts() async {
     do {
         let list = try await Product.products(for: productIDs)
         StoreState.shared.products = list.sorted { $0.price < $1.price }
+        await refreshTrialEligibility()
         if list.isEmpty {
             StoreState.shared.message = "Subscriptions are not available right now. Please try again later."
         }
@@ -99,7 +110,7 @@ public func navdb_store_status() -> UnsafeMutablePointer<CChar>? {
         var trial = ""
         if let sub = p.subscription {
             period = describe(sub.subscriptionPeriod)
-            if let offer = sub.introductoryOffer, offer.paymentMode == .freeTrial {
+            if s.trialEligible, let offer = sub.introductoryOffer, offer.paymentMode == .freeTrial {
                 trial = describe(offer.period)
             }
         }

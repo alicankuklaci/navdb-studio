@@ -22,7 +22,7 @@ native-tls = "0.2"
 rusqlite = { version = "0.32", features = ["bundled", "column_decltype"] }
 redis = "0.27"
 mongodb = { version = "3.9.1", features = ["sync"] }
-duckdb = { version = "1.10506.1", features = ["bundled"] }
+duckdb = { version = "1.10506.1", features = ["bundled", "parquet", "json"] }
 ureq = { version = "3.4.2", features = ["json"] }
 tiberius = { version = "0.13.0", default-features = false, features = ["tds73", "rustls", "chrono"] }
 tokio = { version = "1.53.3", features = ["rt", "rt-multi-thread", "net", "time"] }
@@ -39,11 +39,15 @@ base64 = "0.23.1"
 futures-util = "0.3.34"
 
 [features]
-default = ["oracle", "ssh-tunnel"]
+default = ["oracle", "ssh-tunnel", "duckdb-extensions"]
 # Oracle loads the Instant Client at runtime; not possible inside the macOS App Sandbox
 oracle = ["dep:oracle"]
 # tunnels through the system OpenSSH client
 ssh-tunnel = []
+# DuckDB may download extensions (Iceberg, httpfs, ...) at runtime; the Mac App
+# Store forbids downloading executable code, so that build only gets the
+# extensions compiled in above
+duckdb-extensions = []
 
 [dev-dependencies]
 tempfile = "3"

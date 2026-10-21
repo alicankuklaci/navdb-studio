@@ -5,3 +5,4 @@
 /target-*
 /dist/
 /packaging/macos/*.provisionprofile
+__pycache__/

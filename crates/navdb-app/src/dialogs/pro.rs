@@ -14,6 +14,7 @@ const FEATURES: &[&str] = &[
     "ER model diagrams",
     "Charts and dashboards",
     "Automation: scheduled queries, backups and exports",
+    "Import connections from other tools",
 ];
 
 pub struct ProDialog {
@@ -64,14 +65,13 @@ impl Dialog for ProDialog {
                         ui.horizontal(|ui| {
                             ui.vertical(|ui| {
                                 ui.label(RichText::new(&p.name).strong());
+                                ui.label(RichText::new(format!("{} per {}", p.price, p.period)).heading());
+                                if !p.trial.is_empty() {
+                                    ui.label(format!("Free for {}, then {} per {}. Renews automatically until cancelled.", p.trial, p.price, p.period));
+                                }
                                 if !p.description.is_empty() {
                                     ui.label(RichText::new(&p.description).small().weak());
                                 }
-                                let mut line = format!("{} / {}", p.price, p.period);
-                                if !p.trial.is_empty() {
-                                    line = format!("{} free trial, then {}", p.trial, line);
-                                }
-                                ui.label(RichText::new(line).small());
                             });
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 if ui.add_enabled(!s.busy, egui::Button::new("Subscribe")).clicked() {
@@ -90,9 +90,8 @@ impl Dialog for ProDialog {
                         ui.spinner();
                     }
                 });
-            } else {
-                ui.hyperlink_to("Manage subscription", store::MANAGE_URL);
             }
+            ui.hyperlink_to("Manage subscription", store::MANAGE_URL);
             if !s.message.is_empty() {
                 ui.add_space(4.0);
                 ui.label(RichText::new(&s.message).color(ui.visuals().warn_fg_color));

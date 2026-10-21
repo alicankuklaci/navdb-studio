@@ -254,10 +254,15 @@ impl DbKind {
         Self::GROUPS.iter().map(|(g, ks)| (*g, ks.iter().copied().filter(|k| k.available()).collect())).collect()
     }
 
-    /// Whether this build ships a driver for the kind (Oracle is left out of
-    /// the sandboxed App Store build).
+    /// Whether this build ships a driver for the kind (Oracle and Iceberg,
+    /// which needs a downloaded DuckDB extension, are left out of the
+    /// sandboxed App Store build).
     pub fn available(self) -> bool {
-        self != DbKind::Oracle || cfg!(feature = "oracle")
+        match self {
+            DbKind::Oracle => cfg!(feature = "oracle"),
+            DbKind::Iceberg => cfg!(feature = "duckdb-extensions"),
+            _ => true,
+        }
     }
 
     pub fn is_file_based(self) -> bool {

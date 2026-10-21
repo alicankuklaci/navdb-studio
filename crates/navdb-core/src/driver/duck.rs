@@ -62,9 +62,19 @@ fn sql_err(e: duckdb::Error) -> anyhow::Error {
     anyhow!("{}", e)
 }
 
+/// `INSTALL x`, `FORCE INSTALL x`, `LOAD x` (comments and case ignored).
+fn is_extension_statement(sql: &str) -> bool {
+    let words: Vec<String> = crate::sqlutil::strip_leading_comments(sql).split_whitespace().take(2).map(|w| w.to_ascii_uppercase()).collect();
+    matches!(words.first().map(String::as_str), Some("INSTALL" | "LOAD"))
+        || (words.first().map(String::as_str) == Some("FORCE") && words.get(1).map(String::as_str) == Some("INSTALL"))
+}
+
 impl DuckDriver {
     pub fn connect(cfg: &ConnectionConfig) -> Result<Self> {
         if cfg.kind == DbKind::Iceberg {
+            if !cfg!(feature = "duckdb-extensions") {
+                bail!("Apache Iceberg is not available in this edition of NavDB Studio");
+            }
             return Self::connect_iceberg(cfg);
         }
         let memory = cfg.database.is_empty() || cfg.database == ":memory:";
@@ -77,7 +87,7 @@ impl DuckDriver {
             entry.2 += 1;
             return Ok(Self { conn, kind: cfg.kind, iceberg_path: false, instance: Some(key) });
         }
-        let mut config = Config::default().enable_autoload_extension(true).map_err(sql_err)?;
+        let mut config = Config::default().enable_autoload_extension(cfg!(feature = "duckdb-extensions")).map_err(sql_err)?;
         if cfg.read_only {
             config = config.access_mode(AccessMode::ReadOnly).map_err(sql_err)?;
         }
@@ -88,6 +98,15 @@ impl DuckDriver {
         }
         .map_err(sql_err)
         .with_context(|| format!("opening {}", if cfg.database.is_empty() { ":memory:" } else { &cfg.database }))?;
+        if !cfg!(feature = "duckdb-extensions") {
+            // no INSTALL/LOAD of downloaded extensions, not even from the SQL editor
+            conn.execute_batch(
+                "SET autoinstall_known_extensions = false; SET autoload_known_extensions = false; \
+                 SET allow_community_extensions = false; SET custom_extension_repository = 'http://127.0.0.1:9'; \
+                 SET lock_configuration = true;",
+            )
+            .map_err(sql_err)?;
+        }
         for (alias, file) in &cfg.attached {
             let ro = if cfg.read_only { " (READ_ONLY)" } else { "" };
             conn.execute_batch(&format!("ATTACH {} AS {}{}", lit(file), qi(alias), ro))
@@ -920,6 +939,9 @@ impl Driver for DuckDriver {
         for stmt in crate::sqlutil::split_statements(sql, D) {
             if self.iceberg_path && is_write_statement(&stmt) {
                 bail!("the Iceberg path catalog is read-only; use a REST catalog to modify tables");
+            }
+            if !cfg!(feature = "duckdb-extensions") && is_extension_statement(&stmt) {
+                bail!("installing or loading DuckDB extensions is not available in this edition of NavDB Studio");
             }
             out.push(self.run_one(&stmt)?);
         }
