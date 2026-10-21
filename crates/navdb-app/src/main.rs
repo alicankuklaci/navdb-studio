@@ -57,10 +57,18 @@ fn software_gl_dll() -> Option<std::path::PathBuf> {
 
 #[cfg(windows)]
 fn relaunch_with_software_gl() -> bool {
-    software_gl_dll().is_some()
-        && std::env::current_exe()
-            .and_then(|exe| std::process::Command::new(exe).args(std::env::args_os().skip(1)).env(SOFTWARE_GL, "1").spawn())
-            .is_ok()
+    if software_gl_dll().is_none() {
+        return false;
+    }
+    let Ok(exe) = std::env::current_exe() else { return false };
+    let mut cmd = std::process::Command::new(exe);
+    cmd.args(std::env::args_os().skip(1)).env(SOFTWARE_GL, "1");
+    // Mesa otherwise picks its D3D12 driver, which fails the same way without a GPU;
+    // it reads the variable through the C runtime, so it has to be set before the process starts
+    if std::env::var_os("GALLIUM_DRIVER").is_none() {
+        cmd.env("GALLIUM_DRIVER", "llvmpipe");
+    }
+    cmd.spawn().is_ok()
 }
 
 /// Loads the bundled opengl32.dll before the window exists. opengl32.dll is
