@@ -47,7 +47,10 @@ cd "$root"
 # keep local paths (user name, checkout folder) out of the shipped binary; its own
 # target dir so the changed RUSTFLAGS do not invalidate the regular build cache
 export CARGO_TARGET_DIR="$root/target/appstore"
-export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$root=/navdb --remap-path-prefix=$HOME=/home"
+# (rustc applies the last matching prefix, so the checkout comes after $HOME)
+export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$HOME=/home --remap-path-prefix=$root=/navdb"
+export CFLAGS="${CFLAGS:-} -ffile-prefix-map=$root=/navdb -ffile-prefix-map=$HOME=/home"
+export CXXFLAGS="${CXXFLAGS:-} -ffile-prefix-map=$root=/navdb -ffile-prefix-map=$HOME=/home"
 for t in aarch64-apple-darwin x86_64-apple-darwin; do
   MACOSX_DEPLOYMENT_TARGET=12.0 cargo build --release -p navdb-app --no-default-features --features appstore --target "$t"
 done
