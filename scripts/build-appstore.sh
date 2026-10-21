@@ -44,11 +44,15 @@ pkg_id="$(identity | grep -E '^(3rd Party Mac Developer Installer|Mac Installer 
 [[ -f "$profile" ]] || { echo "missing provisioning profile: $profile" >&2; exit 1; }
 
 cd "$root"
+# keep local paths (user name, checkout folder) out of the shipped binary; its own
+# target dir so the changed RUSTFLAGS do not invalidate the regular build cache
+export CARGO_TARGET_DIR="$root/target/appstore"
+export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$root=/navdb --remap-path-prefix=$HOME=/home"
 for t in aarch64-apple-darwin x86_64-apple-darwin; do
   MACOSX_DEPLOYMENT_TARGET=12.0 cargo build --release -p navdb-app --no-default-features --features appstore --target "$t"
 done
 mkdir -p "$out"
-lipo -create -output "$out/navdb" target/aarch64-apple-darwin/release/navdb target/x86_64-apple-darwin/release/navdb
+lipo -create -output "$out/navdb" "$CARGO_TARGET_DIR"/aarch64-apple-darwin/release/navdb "$CARGO_TARGET_DIR"/x86_64-apple-darwin/release/navdb
 
 scripts/bundle-macos.sh "$out/navdb" "$out" "$version" >/dev/null
 rm "$out/navdb"

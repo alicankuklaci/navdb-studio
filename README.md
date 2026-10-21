@@ -6,7 +6,7 @@
 
 **A fast, native database GUI for 31 database engines — free and open source.**
 
-Navicat-style workflow, written from scratch in Rust. One app for MySQL, PostgreSQL, SQLite, SQL Server, Oracle, MongoDB, Redis, ClickHouse, DuckDB, Cassandra, Elasticsearch and many more.
+A complete database workbench, written from scratch in Rust. One app for MySQL, PostgreSQL, SQLite, SQL Server, Oracle, MongoDB, Redis, ClickHouse, DuckDB, Cassandra, Elasticsearch and many more.
 
 [![CI](https://github.com/alicankuklaci/navdb-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/alicankuklaci/navdb-studio/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/alicankuklaci/navdb-studio?sort=semver)](https://github.com/alicankuklaci/navdb-studio/releases/latest)
@@ -28,7 +28,7 @@ Navicat-style workflow, written from scratch in Rust. One app for MySQL, Postgre
 
 - **One tool, 31 engines.** Relational, analytical, document, key-value, search and wide-column databases share one navigator, one SQL editor and one data grid.
 - **Native and lightweight.** A single self-contained binary built with Rust and [egui](https://github.com/emilk/egui) — no Electron, no JVM, no runtime to install.
-- **Navicat-style workflow, plus more.** Table designer, data transfer, structure and data sync, ER diagrams, charts and automation, plus extras such as context-aware autocomplete, DuckDB and lakehouse engines.
+- **The whole workflow in one app.** Table designer, data transfer, structure and data sync, ER diagrams, charts and automation, plus extras such as context-aware autocomplete, DuckDB and lakehouse engines.
 - **Free and open source.** No license keys, no trial, no telemetry. Dual-licensed MIT / Apache-2.0.
 - **Cross-platform.** Windows, macOS (Apple Silicon and Intel) and Linux (x64 and arm64).
 
@@ -222,4 +222,4 @@ at your option. Unless you explicitly state otherwise, any contribution you inte
 
 ---
 
-<sub>NavDB Studio is an independent project. It is not affiliated with, endorsed by or sponsored by PremiumSoft CyberTech Ltd. "Navicat" and all other product names are trademarks of their respective owners, used here only for identification.</sub>
+<sub>NavDB Studio is an independent project. Database and product names and logos are trademarks of their respective owners, used here only to identify the engines NavDB Studio connects to.</sub>

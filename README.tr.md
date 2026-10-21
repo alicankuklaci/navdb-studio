@@ -6,7 +6,7 @@
 
 **31 veritabanı motoru için hızlı, yerel (native) bir veritabanı arayüzü — ücretsiz ve açık kaynak.**
 
-Navicat tarzı çalışma düzeni, Rust ile sıfırdan yazıldı. MySQL, PostgreSQL, SQLite, SQL Server, Oracle, MongoDB, Redis, ClickHouse, DuckDB, Cassandra, Elasticsearch ve daha fazlası için tek uygulama.
+Eksiksiz bir veritabanı çalışma ortamı, Rust ile sıfırdan yazıldı. MySQL, PostgreSQL, SQLite, SQL Server, Oracle, MongoDB, Redis, ClickHouse, DuckDB, Cassandra, Elasticsearch ve daha fazlası için tek uygulama.
 
 [![CI](https://github.com/alicankuklaci/navdb-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/alicankuklaci/navdb-studio/actions/workflows/ci.yml)
 [![Son sürüm](https://img.shields.io/github/v/release/alicankuklaci/navdb-studio?sort=semver)](https://github.com/alicankuklaci/navdb-studio/releases/latest)
@@ -28,7 +28,7 @@ Navicat tarzı çalışma düzeni, Rust ile sıfırdan yazıldı. MySQL, Postgre
 
 - **Tek araç, 31 motor.** İlişkisel, analitik, doküman, anahtar-değer, arama ve geniş sütunlu veritabanları aynı gezgini, aynı SQL editörünü ve aynı veri tablosunu kullanır.
 - **Yerel ve hafif.** Rust ve [egui](https://github.com/emilk/egui) ile yazılmış tek, bağımsız bir program. Electron yok, JVM yok, kurulacak ek çalışma ortamı yok.
-- **Navicat tarzı, üstüne daha fazlası.** Tablo tasarımcısı, veri aktarımı, yapı ve veri senkronizasyonu, ER diyagramları, grafikler ve otomasyon; ayrıca bağlama duyarlı otomatik tamamlama, DuckDB ve lakehouse motorları gibi ekstralar.
+- **Tüm iş akışı tek uygulamada.** Tablo tasarımcısı, veri aktarımı, yapı ve veri senkronizasyonu, ER diyagramları, grafikler ve otomasyon; ayrıca bağlama duyarlı otomatik tamamlama, DuckDB ve lakehouse motorları gibi ekstralar.
 - **Ücretsiz ve açık kaynak.** Lisans anahtarı yok, deneme süresi yok, telemetri yok. MIT / Apache-2.0 çift lisanslı.
 - **Çapraz platform.** Windows, macOS (Apple Silicon ve Intel) ve Linux (x64 ve arm64).
 
@@ -222,4 +222,4 @@ Hangisini seçeceğiniz size kalmıştır. Aksini açıkça belirtmediğiniz sü
 
 ---
 
-<sub>NavDB Studio bağımsız bir projedir. PremiumSoft CyberTech Ltd. ile bağlantılı değildir, onun tarafından desteklenmez veya sponsor edilmez. "Navicat" ve diğer tüm ürün adları sahiplerinin ticari markalarıdır ve burada yalnızca tanımlama amacıyla kullanılmıştır.</sub>
+<sub>NavDB Studio bağımsız bir projedir. Veritabanı ve ürün adları ile logoları sahiplerinin ticari markalarıdır; burada yalnızca NavDB Studio'nun bağlandığı motorları tanımlamak için kullanılmıştır.</sub>

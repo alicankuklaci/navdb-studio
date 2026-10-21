@@ -1,9 +1,6 @@
 # NavDB Studio – Architecture
 
-NavDB Studio is a clean-room Rust re-implementation of the feature set of a
-commercial multi-database GUI client (feature inventory in
-`docs/reference-screen-inventory.txt`). No code or assets were copied from the
-reference product.
+NavDB Studio is a native multi-database GUI client written from scratch in Rust.
 
 ## Workspace
 
