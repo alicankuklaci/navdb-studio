@@ -39,8 +39,7 @@ Prebuilt binaries for every release are on the [**Releases page**](https://githu
 | Platform | Download | Notes |
 |---|---|---|
 | **Windows** 10/11 (x64) | [NavDB-Studio-windows-x64.zip](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-windows-x64.zip) | Unzip and run `NavDB Studio.exe` |
-| **macOS** Apple Silicon | [NavDB-Studio-macos-arm64.dmg](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-macos-arm64.dmg) | macOS 11 or later |
-| **macOS** Intel | [NavDB-Studio-macos-x64.dmg](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-macos-x64.dmg) | macOS 11 or later |
+| **macOS** | Coming soon to the Mac App Store | macOS 12 or later; [build from source](#build-from-source) meanwhile |
 | **Linux** x64 — Debian/Ubuntu | [NavDB-Studio-linux-x64.deb](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-x64.deb) | `sudo apt install ./NavDB-Studio-linux-x64.deb` |
 | **Linux** x64 — any distro | [NavDB-Studio-linux-x64.tar.gz](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-x64.tar.gz) | glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 or newer) |
 | **Linux** arm64 | [.deb](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-arm64.deb) · [.tar.gz](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-arm64.tar.gz) | Raspberry Pi 4/5, ARM servers |
@@ -48,14 +47,7 @@ Prebuilt binaries for every release are on the [**Releases page**](https://githu
 Each release also ships a `SHA256SUMS.txt` file for verifying downloads.
 
 > [!IMPORTANT]
-> **First launch on macOS:** the app is not yet notarized by Apple, so macOS shows *"Apple could not verify 'NavDB Studio' is free of malware…"*. This is expected; the build is produced from this repository by [GitHub Actions](https://github.com/alicankuklaci/navdb-studio/actions/workflows/release.yml). To open it once:
->
-> 1. Drag *NavDB Studio* from the `.dmg` to *Applications* and try to open it. Click **Done** in the warning.
-> 2. Open **System Settings → Privacy & Security**, scroll down to *"NavDB Studio" was blocked…* and click **Open Anyway**.
->
-> Or run this once in Terminal: `xattr -dr com.apple.quarantine "/Applications/NavDB Studio.app"`
->
-> **Windows:** in the SmartScreen dialog click **More info → Run anyway**. **Linux:** no extra step is needed.
+> **Windows:** in the SmartScreen dialog click **More info → Run anyway**. On machines without a GPU driver (remote desktop, VMs) the app switches to the bundled software renderer in the `mesa` folder on its own. **Linux:** no extra step is needed.
 
 ## Features
 

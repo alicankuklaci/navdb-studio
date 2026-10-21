@@ -19,20 +19,64 @@ fn main() {
     }));
     store::start();
     #[cfg(windows)]
-    let renderers = [eframe::Renderer::Wgpu, eframe::Renderer::Glow];
+    let relaunched = std::env::var_os(SOFTWARE_GL).is_some();
+    #[cfg(windows)]
+    let software = relaunched && load_software_gl();
+    #[cfg(windows)]
+    let renderers: &[eframe::Renderer] = if software { &[eframe::Renderer::Glow] } else { &[eframe::Renderer::Wgpu, eframe::Renderer::Glow] };
     #[cfg(not(windows))]
-    let renderers = [eframe::Renderer::Glow];
+    let renderers: &[eframe::Renderer] = &[eframe::Renderer::Glow];
     let mut errors = Vec::new();
-    for renderer in renderers {
+    for &renderer in renderers {
         match eframe::run_native("NavDB Studio", options(renderer), Box::new(|cc| Ok(Box::new(app::NavApp::new(cc))))) {
             Ok(()) => return,
             Err(e) => errors.push(format!("{renderer}: {e}")),
         }
     }
+    // no GPU driver (remote desktop, VMs): start again on the bundled software OpenGL
+    #[cfg(windows)]
+    if !relaunched && relaunch_with_software_gl() {
+        return;
+    }
     // a GUI-subsystem build has no console, so say why nothing opened
     let msg = format!("NavDB Studio could not open its window.\n\n{}\n\nUpdating the graphics driver usually fixes this.", errors.join("\n"));
     report(&msg, &msg);
     std::process::exit(1);
+}
+
+/// Set in the environment of a relaunch that draws with the bundled software OpenGL.
+#[cfg(windows)]
+const SOFTWARE_GL: &str = "NAVDB_SOFTWARE_GL";
+
+/// Mesa's llvmpipe OpenGL, shipped in the `mesa` folder next to the exe.
+#[cfg(windows)]
+fn software_gl_dll() -> Option<std::path::PathBuf> {
+    let dll = std::env::current_exe().ok()?.parent()?.join("mesa").join("opengl32.dll");
+    dll.exists().then_some(dll)
+}
+
+#[cfg(windows)]
+fn relaunch_with_software_gl() -> bool {
+    software_gl_dll().is_some()
+        && std::env::current_exe()
+            .and_then(|exe| std::process::Command::new(exe).args(std::env::args_os().skip(1)).env(SOFTWARE_GL, "1").spawn())
+            .is_ok()
+}
+
+/// Loads the bundled opengl32.dll before the window exists, so the GL loader
+/// later resolves "opengl32.dll" to it instead of the system's OpenGL 1.1.
+#[cfg(windows)]
+fn load_software_gl() -> bool {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn LoadLibraryExW(name: *const u16, file: *mut std::ffi::c_void, flags: u32) -> *mut std::ffi::c_void;
+    }
+    // resolve the DLL's own dependencies (libgallium_wgl.dll) from its folder
+    const LOAD_WITH_ALTERED_SEARCH_PATH: u32 = 0x8;
+    let Some(dll) = software_gl_dll() else { return false };
+    let name: Vec<u16> = dll.as_os_str().encode_wide().chain([0]).collect();
+    !unsafe { LoadLibraryExW(name.as_ptr(), std::ptr::null_mut(), LOAD_WITH_ALTERED_SEARCH_PATH) }.is_null()
 }
 
 /// Writes `detail` to crash.log in the data folder and shows `msg`, since a

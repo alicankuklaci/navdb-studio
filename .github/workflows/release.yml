@@ -11,6 +11,8 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  MESA_VERSION: "26.2.4"
+  MESA_SHA256: "351FC8C8B695878FFB3EAA044B3EAD08672A48B1A045E3C3E3975811DF0F6695"
 
 jobs:
   build:
@@ -22,12 +24,6 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-2022
             arch: x64
-          - target: aarch64-apple-darwin
-            os: macos-14
-            arch: arm64
-          - target: x86_64-apple-darwin
-            os: macos-14
-            arch: x64
           # oldest supported runners: keep the glibc requirement of the binary low
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
@@ -36,8 +32,6 @@ jobs:
             os: ubuntu-22.04-arm
             arch: arm64
     runs-on: ${{ matrix.os }}
-    env:
-      MACOSX_DEPLOYMENT_TARGET: "11.0"
     steps:
       - uses: actions/checkout@v4
 
@@ -66,32 +60,27 @@ jobs:
         run: cargo build --release --locked -p navdb-app --target ${{ matrix.target }}
 
       # asset names carry no version so README links to releases/latest/download/<name> stay valid
+      # software OpenGL (Mesa llvmpipe) for machines without a GPU driver, e.g. remote desktop and VMs;
+      # navdb.exe loads it from the mesa folder only when no hardware renderer starts
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $name = "NavDB-Studio-windows-${{ matrix.arch }}"
-          New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
+          New-Item -ItemType Directory -Force -Path "dist/$name/mesa" | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/navdb.exe" "dist/$name/NavDB Studio.exe"
+          $mesa = "mesa3d-${{ env.MESA_VERSION }}-release-msvc.7z"
+          Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/${{ env.MESA_VERSION }}/$mesa" -OutFile $mesa
+          if ((Get-FileHash $mesa -Algorithm SHA256).Hash -ne "${{ env.MESA_SHA256 }}") { throw "Mesa checksum mismatch" }
+          7z x $mesa -omesa-dist "x64/*" | Out-Null
+          Get-ChildItem mesa-dist/x64
+          foreach ($dll in "opengl32.dll", "libgallium_wgl.dll", "libglapi.dll") {
+            if (Test-Path "mesa-dist/x64/$dll") { Copy-Item "mesa-dist/x64/$dll" "dist/$name/mesa/" }
+          }
+          if (!(Test-Path "dist/$name/mesa/opengl32.dll")) { throw "Mesa opengl32.dll missing" }
           Copy-Item README.md, LICENSE-MIT, LICENSE-APACHE "dist/$name/"
           Compress-Archive -Path "dist/$name/*" -DestinationPath "dist/$name.zip"
           Remove-Item -Recurse "dist/$name"
-
-      - name: Package (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          name="NavDB-Studio-macos-${{ matrix.arch }}"
-          stage="$(mktemp -d)/$name"
-          mkdir -p "$stage"
-          scripts/bundle-macos.sh "target/${{ matrix.target }}/release/navdb" "$stage" "${{ steps.ver.outputs.version }}"
-          ditto -c -k --keepParent "$stage/NavDB Studio.app" "dist/$name.zip"
-          ln -s /Applications "$stage/Applications"
-          # hdiutil on hosted runners sometimes fails with "Resource busy"; retry a few times
-          for i in 1 2 3 4 5; do
-            hdiutil create -volname "NavDB Studio" -srcfolder "$stage" -ov -format UDZO "dist/$name.dmg" && break
-            [ "$i" = 5 ] && exit 1
-            sleep $((i * 5))
-          done
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
@@ -106,7 +95,6 @@ jobs:
           name: navdb-${{ matrix.target }}
           path: |
             dist/*.zip
-            dist/*.dmg
             dist/*.tar.gz
             dist/*.deb
           if-no-files-found: error

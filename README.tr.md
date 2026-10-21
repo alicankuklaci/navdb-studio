@@ -39,8 +39,7 @@ Her sürümün derlenmiş dosyaları [**Releases sayfasında**](https://github.c
 | Platform | İndir | Not |
 |---|---|---|
 | **Windows** 10/11 (x64) | [NavDB-Studio-windows-x64.zip](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-windows-x64.zip) | Zip'i açıp `NavDB Studio.exe` dosyasını çalıştırın |
-| **macOS** Apple Silicon | [NavDB-Studio-macos-arm64.dmg](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-macos-arm64.dmg) | macOS 11 veya üstü |
-| **macOS** Intel | [NavDB-Studio-macos-x64.dmg](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-macos-x64.dmg) | macOS 11 veya üstü |
+| **macOS** | Yakında Mac App Store'da | macOS 12 veya üstü; şimdilik [kaynaktan derleyin](#kaynaktan-derleme) |
 | **Linux** x64 — Debian/Ubuntu | [NavDB-Studio-linux-x64.deb](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-x64.deb) | `sudo apt install ./NavDB-Studio-linux-x64.deb` |
 | **Linux** x64 — tüm dağıtımlar | [NavDB-Studio-linux-x64.tar.gz](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-x64.tar.gz) | glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 veya daha yenisi) |
 | **Linux** arm64 | [.deb](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-arm64.deb) · [.tar.gz](https://github.com/alicankuklaci/navdb-studio/releases/latest/download/NavDB-Studio-linux-arm64.tar.gz) | Raspberry Pi 4/5, ARM sunucular |
@@ -48,14 +47,7 @@ Her sürümün derlenmiş dosyaları [**Releases sayfasında**](https://github.c
 Her sürümde indirmeleri doğrulamak için bir `SHA256SUMS.txt` dosyası da bulunur.
 
 > [!IMPORTANT]
-> **macOS'ta ilk açılış:** Uygulama henüz Apple tarafından onaylanmadığı (notarize edilmediği) için macOS *"Apple could not verify 'NavDB Studio' is free of malware…"* uyarısı gösterir. Bu beklenen bir durumdur; dosyalar bu depodan [GitHub Actions](https://github.com/alicankuklaci/navdb-studio/actions/workflows/release.yml) ile derlenir. Bir kereliğine açmak için:
->
-> 1. `.dmg` içindeki *NavDB Studio*'yu *Uygulamalar* (Applications) klasörüne sürükleyip açmayı deneyin. Uyarıda **Bitti** (Done) düğmesine basın.
-> 2. **Sistem Ayarları → Gizlilik ve Güvenlik** bölümünü açın, aşağıdaki *"NavDB Studio" engellendi…* satırını bulun ve **Yine de Aç** (Open Anyway) düğmesine basın.
->
-> Ya da Terminal'de bir kez şunu çalıştırın: `xattr -dr com.apple.quarantine "/Applications/NavDB Studio.app"`
->
-> **Windows:** SmartScreen penceresinde **Ek bilgi → Yine de çalıştır** seçin. **Linux:** ek bir adım gerekmez.
+> **Windows:** SmartScreen penceresinde **Ek bilgi → Yine de çalıştır**'a tıklayın. Ekran kartı sürücüsü olmayan makinelerde (uzak masaüstü, sanal makine) uygulama `mesa` klasöründeki yazılımsal çiziciye kendiliğinden geçer. **Linux:** ek bir adım gerekmez.
 
 ## Özellikler
 
