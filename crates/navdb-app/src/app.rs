@@ -417,6 +417,14 @@ impl NavApp {
                     None => self.st.toast("Select a connection first"),
                 }
             }
+            // the subscriptions are reachable from here as well as from the Pro features themselves
+            if crate::store::ENABLED && !crate::store::is_pro() {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui::toolbar_button(ui, icon::STAR, "Get Pro", false).clicked() {
+                        self.st.open_dialog(crate::dialogs::pro::ProDialog::new(None));
+                    }
+                });
+            }
         });
     }
 

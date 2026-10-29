@@ -86,6 +86,9 @@ impl Dialog for ProDialog {
                     if ui.add_enabled(!s.busy, egui::Button::new("Restore Purchases")).clicked() {
                         store::restore();
                     }
+                    if s.products.is_empty() && !s.message.is_empty() && ui.button("Try Again").clicked() {
+                        store::reload();
+                    }
                     if s.busy {
                         ui.spinner();
                     }

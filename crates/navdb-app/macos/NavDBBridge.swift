@@ -96,6 +96,15 @@ public func navdb_store_start() {
     }
 }
 
+/// Ask the App Store for the subscriptions again, e.g. after a network error.
+@_cdecl("navdb_store_reload")
+public func navdb_store_reload() {
+    StoreState.shared.message = ""
+    Task.detached {
+        await loadProducts()
+    }
+}
+
 @_cdecl("navdb_store_is_pro")
 public func navdb_store_is_pro() -> Bool {
     StoreState.shared.pro

@@ -345,6 +345,10 @@ fn welcome(ui: &mut Ui, st: &mut AppState) {
         }
         ui.add_space(20.0);
         ui.label(RichText::new("Create a connection, then double-click it in the navigator to connect.").weak());
+        ui.add_space(6.0);
+        if ui.button("Open the demo database").on_hover_text("A sample SQLite shop database with customers, products and orders").clicked() {
+            cmd::open_demo(st);
+        }
         if !st.ws.connections.is_empty() {
             ui.add_space(14.0);
             ui.label(RichText::new("Recent connections").strong());

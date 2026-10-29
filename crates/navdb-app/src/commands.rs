@@ -8,9 +8,48 @@ use crate::state::{Action, AppState};
 use crate::store;
 use crate::tabs;
 
-/// Saving one more connection needs Pro once the free limit is reached.
+/// Saving one more connection needs Pro once the free limit is reached;
+/// the sample database does not take one of the free slots.
 fn connection_slot(st: &mut AppState) -> bool {
-    st.ws.connections.len() < store::FREE_CONNECTIONS || store::require_pro(st, "More than two saved connections")
+    let demo = demo_path().to_string_lossy().into_owned();
+    let used = st.ws.connections.iter().filter(|c| !(c.kind == DbKind::Sqlite && c.database == demo)).count();
+    used < store::FREE_CONNECTIONS || store::require_pro(st, "More than two saved connections")
+}
+
+/// Where the sample "shop" database lives in the data folder.
+pub fn demo_path() -> std::path::PathBuf {
+    navdb_core::config::data_dir().join("demo").join("shop.sqlite")
+}
+
+/// Writes the sample database and adds its connection and a saved query.
+/// Returns the new connection's id.
+pub fn add_demo(ws: &mut navdb_core::config::Workspace) -> Option<String> {
+    let path = demo_path();
+    navdb_core::demo::create(&path).ok()?;
+    let c = navdb_core::demo::connection(&path);
+    let id = c.id.clone();
+    ws.queries.push(navdb_core::demo::query(&c));
+    ws.connections.insert(0, c);
+    let _ = ws.save();
+    Some(id)
+}
+
+/// Opens the sample database, recreating it (and its connection) when it was removed.
+pub fn open_demo(st: &mut AppState) {
+    let demo = demo_path().to_string_lossy().into_owned();
+    let existing = st.ws.connections.iter().find(|c| c.kind == DbKind::Sqlite && c.database == demo).map(|c| c.id.clone());
+    let id = match existing {
+        Some(id) if demo_path().exists() => Some(id),
+        Some(id) => navdb_core::demo::create(&demo_path()).ok().map(|_| id),
+        None => add_demo(&mut st.ws),
+    };
+    match id {
+        Some(id) => {
+            st.push(Action::OpenConnection(id.clone()));
+            st.selection = crate::state::Selection { conn: Some(id), ..Default::default() };
+        }
+        None => st.error("Could not create the demo database"),
+    }
 }
 
 pub fn new_connection(st: &mut AppState, kind: DbKind) {

@@ -48,6 +48,7 @@ mod ffi {
         fn navdb_store_status() -> *mut c_char;
         fn navdb_store_purchase(id: *const c_char);
         fn navdb_store_restore();
+        fn navdb_store_reload();
         fn navdb_bookmark_create(path: *const c_char) -> *mut c_char;
         fn navdb_bookmark_open(b64: *const c_char) -> *mut c_char;
     }
@@ -81,6 +82,9 @@ mod ffi {
     }
     pub fn restore() {
         unsafe { navdb_store_restore() }
+    }
+    pub fn reload() {
+        unsafe { navdb_store_reload() }
     }
     pub fn bookmark_create(path: &str) -> Option<String> {
         let p = cstr(path);
@@ -123,6 +127,12 @@ pub fn purchase(_id: &str) {
 pub fn restore() {
     #[cfg(feature = "appstore")]
     ffi::restore();
+}
+
+/// Loads the subscription products again.
+pub fn reload() {
+    #[cfg(feature = "appstore")]
+    ffi::reload();
 }
 
 #[cfg(feature = "appstore")]

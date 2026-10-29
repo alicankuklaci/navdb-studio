@@ -263,7 +263,10 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(notify: Notify) -> Self {
-        let ws = Workspace::load();
+        let mut ws = Workspace::load();
+        if ws.connections.is_empty() && !crate::commands::demo_path().exists() {
+            crate::commands::add_demo(&mut ws);
+        }
         let max = ws.preferences.max_history;
         Self {
             ws,

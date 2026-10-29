@@ -6,6 +6,7 @@ pub mod complete;
 pub mod config;
 pub mod datagen;
 pub mod ddl;
+pub mod demo;
 pub mod dialect;
 pub mod dml;
 pub mod dump;
