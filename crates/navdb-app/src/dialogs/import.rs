@@ -344,7 +344,7 @@ impl ImportWizard {
     fn ui_source(&mut self, ui: &mut egui::Ui) {
         ui.label("Import from file:");
         ui.horizontal(|ui| {
-            if ui.add(egui::TextEdit::singleline(&mut self.path).desired_width(400.0).min_size(egui::vec2(400.0, 0.0)).hint_text("/path/to/file")).changed() {
+            if ui.add(ui::path_edit(&mut self.path, ui, 400.0, 90.0, "/path/to/file")).changed() {
                 self.content = None;
             }
             if ui.button("Browse…").clicked() {

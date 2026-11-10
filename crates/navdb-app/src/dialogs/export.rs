@@ -79,7 +79,7 @@ impl ExportWizard {
             objects: Loadable::NotLoaded,
             items: vec![],
             item_filter: String::new(),
-            folder: job::home_dir().display().to_string(),
+            folder: crate::ui::default_path(job::home_dir()),
             file: String::new(),
             cols_for: None,
             cols: Loadable::NotLoaded,
@@ -124,7 +124,7 @@ impl ExportWizard {
         let name = if name.trim().is_empty() { "result".to_string() } else { name.to_string() };
         let col_sel = result.columns.iter().map(|c| (c.name.clone(), true)).collect();
         let mut w = Self::base(Source::Result { result: Arc::new(result) }, name.clone(), dialect);
-        w.file = job::home_dir().join(stem_with_ext(&job::safe_file_name(&name), ExportFormat::Csv)).display().to_string();
+        w.file = crate::ui::default_path(job::home_dir().join(stem_with_ext(&job::safe_file_name(&name), ExportFormat::Csv)));
         w.table_name = name;
         w.col_sel = col_sel;
         w
@@ -283,9 +283,12 @@ impl ExportWizard {
         if self.is_result() {
             ui.label("Save the result to:");
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.file).desired_width(400.0).min_size(egui::vec2(400.0, 0.0)));
+                ui.add(crate::ui::path_edit(&mut self.file, ui, 400.0, 90.0, ""));
                 if ui.button("Save As…").clicked() {
-                    let name = Path::new(&self.file).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                    let name = Path::new(&self.file)
+                        .file_name()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_else(|| stem_with_ext(&job::safe_file_name(&self.table_name), self.format));
                     if let Some(p) = ui::save_file_dialog(&name, self.format.extension()) {
                         self.file = p.display().to_string();
                     }
@@ -299,7 +302,7 @@ impl ExportWizard {
         }
         ui.horizontal(|ui| {
             ui.label("Output folder:");
-            ui.add(egui::TextEdit::singleline(&mut self.folder).desired_width(340.0).min_size(egui::vec2(340.0, 0.0)));
+            ui.add(crate::ui::path_edit(&mut self.folder, ui, 340.0, 90.0, ""));
             if ui.button("Browse…").clicked() {
                 if let Some(p) = ui::pick_folder_dialog() {
                     self.folder = p.display().to_string();

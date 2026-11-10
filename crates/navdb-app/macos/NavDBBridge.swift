@@ -7,6 +7,7 @@
 // Strings cross the boundary as NUL-terminated UTF-8; strings returned to Rust
 // are malloc'ed and released with navdb_free.
 
+import AppKit
 import Foundation
 import StoreKit
 
@@ -215,4 +216,18 @@ public func navdb_bookmark_open(_ b64: UnsafePointer<CChar>) -> UnsafeMutablePoi
     guard let url = try? URL(resolvingBookmarkData: data, options: [.withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
     guard url.startAccessingSecurityScopedResource() else { return nil }
     return cString(url.path)
+}
+
+/// Open a file or folder with its default app, or (`reveal`) select it in
+/// Finder. NSWorkspace instead of spawning /usr/bin/open from the sandbox.
+@_cdecl("navdb_open_path")
+public func navdb_open_path(_ path: UnsafePointer<CChar>, _ reveal: Bool) {
+    let url = URL(fileURLWithPath: String(cString: path))
+    DispatchQueue.main.async {
+        if reveal {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            NSWorkspace.shared.open(url)
+        }
+    }
 }

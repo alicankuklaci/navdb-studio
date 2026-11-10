@@ -526,7 +526,7 @@ impl AutomationTab {
                         });
                         ui.horizontal(|ui| {
                             ui.label("Output folder");
-                            ui.add(egui::TextEdit::singleline(output_dir).hint_text(config::backups_dir().display().to_string()).desired_width(320.0).min_size(egui::vec2(320.0, 0.0)));
+                            ui.add(crate::ui::path_edit(output_dir, ui, 320.0, 40.0, &config::backups_dir().display().to_string()));
                             if ui.button("…").clicked() {
                                 if let Some(p) = crate::ui::pick_folder_dialog() {
                                     *output_dir = p.display().to_string();
@@ -559,7 +559,7 @@ impl AutomationTab {
                         });
                         ui.horizontal(|ui| {
                             ui.label("Output file");
-                            ui.add(egui::TextEdit::singleline(path).hint_text("empty = backups folder; {date} and {table} are replaced").desired_width(360.0).min_size(egui::vec2(360.0, 0.0)));
+                            ui.add(crate::ui::path_edit(path, ui, 360.0, 40.0, "empty = backups folder; {date} and {table} are replaced"));
                             if ui.button("…").clicked() {
                                 let ext = parse_format(format).map(|f| f.extension()).unwrap_or("csv");
                                 let name = format!("{}.{}", if table.is_empty() { "export" } else { table.as_str() }, ext);

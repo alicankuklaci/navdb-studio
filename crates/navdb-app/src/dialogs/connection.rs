@@ -302,7 +302,7 @@ impl ConnectionDialog {
             for (i, (alias, path)) in self.cfg.attached.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(alias).desired_width(100.0).min_size(egui::vec2(100.0, 0.0)).hint_text("alias"));
-                    ui.add(egui::TextEdit::singleline(path).desired_width(300.0).min_size(egui::vec2(300.0, 0.0)).hint_text("file"));
+                    ui.add(crate::ui::path_edit(path, ui, 300.0, 40.0, "file"));
                     if ui.small_button("✖").clicked() {
                         remove = Some(i);
                     }

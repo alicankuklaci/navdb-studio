@@ -380,7 +380,7 @@ impl DatabaseDialog {
                 ui.end_row();
                 ui.label("Database file:");
                 ui.horizontal(|ui| {
-                    ui.add_enabled(!editing, egui::TextEdit::singleline(&mut self.file).desired_width(240.0).min_size(egui::vec2(240.0, 0.0)));
+                    ui.add_enabled(!editing, crate::ui::path_edit(&mut self.file, ui, 240.0, 40.0, ""));
                     if !editing && ui.button("…").on_hover_text("Choose file").clicked() {
                         let picked = rfd::FileDialog::new()
                             .add_filter("SQLite database", &["db", "sqlite", "sqlite3", "db3"])

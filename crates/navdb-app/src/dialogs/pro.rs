@@ -61,23 +61,24 @@ impl Dialog for ProDialog {
                 }
                 for p in &s.products {
                     ui.group(|ui| {
+                        // Text and button are stacked, never side by side, so the
+                        // wrapped plan text can't run under the button (App Review 4.0).
                         ui.set_width(ui.available_width());
-                        ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.label(RichText::new(&p.name).strong());
-                                ui.label(RichText::new(format!("{} per {}", p.price, p.period)).heading());
-                                if !p.trial.is_empty() {
-                                    ui.label(format!("Free for {}, then {} per {}. Renews automatically until cancelled.", p.trial, p.price, p.period));
-                                }
-                                if !p.description.is_empty() {
-                                    ui.label(RichText::new(&p.description).small().weak());
-                                }
-                            });
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.add_enabled(!s.busy, egui::Button::new("Subscribe")).clicked() {
-                                    store::purchase(&p.id);
-                                }
-                            });
+                        ui.vertical(|ui| {
+                            ui.label(RichText::new(&p.name).strong());
+                            ui.label(RichText::new(format!("{} per {}", p.price, p.period)).heading());
+                            if !p.trial.is_empty() {
+                                ui.label(format!("Free for {}, then {} per {}. Renews automatically until cancelled.", p.trial, p.price, p.period));
+                            }
+                            if !p.description.is_empty() {
+                                ui.label(RichText::new(&p.description).small().weak());
+                            }
+                            ui.add_space(6.0);
+                            let button = egui::Button::new(RichText::new(format!("Subscribe to {}", p.name)).strong())
+                                .min_size(egui::vec2(ui.available_width(), 28.0));
+                            if ui.add_enabled(!s.busy, button).clicked() {
+                                store::purchase(&p.id);
+                            }
                         });
                     });
                 }

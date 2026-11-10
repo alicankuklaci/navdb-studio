@@ -51,6 +51,7 @@ mod ffi {
         fn navdb_store_reload();
         fn navdb_bookmark_create(path: *const c_char) -> *mut c_char;
         fn navdb_bookmark_open(b64: *const c_char) -> *mut c_char;
+        fn navdb_open_path(path: *const c_char, reveal: bool);
     }
 
     fn take(p: *mut c_char) -> Option<String> {
@@ -89,6 +90,10 @@ mod ffi {
     pub fn bookmark_create(path: &str) -> Option<String> {
         let p = cstr(path);
         take(unsafe { navdb_bookmark_create(p.as_ptr()) })
+    }
+    pub fn open_path(path: &str, reveal: bool) {
+        let p = cstr(path);
+        unsafe { navdb_open_path(p.as_ptr(), reveal) }
     }
     pub fn bookmark_open(b64: &str) -> Option<String> {
         let b = cstr(b64);
@@ -201,6 +206,18 @@ fn restore_access() {
         }
     }
     save_bookmarks(&kept);
+}
+
+/// Opens a file or folder with its default app, or selects it in Finder
+/// (`reveal`). Returns false when this build has no native way to do it.
+pub fn open_path(_path: &Path, _reveal: bool) -> bool {
+    #[cfg(feature = "appstore")]
+    {
+        ffi::open_path(&_path.display().to_string(), _reveal);
+        return true;
+    }
+    #[cfg(not(feature = "appstore"))]
+    false
 }
 
 /// Returns true when Pro features are available; otherwise opens the

@@ -213,6 +213,9 @@ pub(crate) fn footer(ui: &mut Ui, back_enabled: bool, next: Option<(&str, bool)>
 
 /// Open a file or folder with the system default application.
 pub(crate) fn open_path(p: &Path) {
+    if crate::store::open_path(p, false) {
+        return;
+    }
     #[cfg(target_os = "macos")]
     let r = std::process::Command::new("open").arg(p).spawn();
     #[cfg(target_os = "windows")]
@@ -224,6 +227,9 @@ pub(crate) fn open_path(p: &Path) {
 
 /// Show a file selected in Finder / Explorer (parent folder elsewhere).
 pub(crate) fn reveal_path(p: &Path) {
+    if crate::store::open_path(p, true) {
+        return;
+    }
     #[cfg(target_os = "macos")]
     let r = std::process::Command::new("open").arg("-R").arg(p).spawn();
     #[cfg(target_os = "windows")]
@@ -388,6 +394,8 @@ pub struct DumpDialog {
     scope: Scope,
     session: Option<Session>,
     path: String,
+    /// File name offered by the save dialog (the path starts empty in the App Store build).
+    default_name: String,
     opts: DumpOptions,
     preselect: Vec<String>,
     tables: Loadable<Vec<String>>,
@@ -418,7 +426,8 @@ impl DumpDialog {
             (None, _) => format!("{}.sql", scope.db),
         };
         let whole_db = tables.is_empty();
-        let path = home_dir().join(safe_file_name(&file)).display().to_string();
+        let default_name = safe_file_name(&file);
+        let path = crate::ui::default_path(home_dir().join(&default_name));
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             conn: conn.to_string(),
@@ -427,6 +436,7 @@ impl DumpDialog {
             scope,
             session,
             path,
+            default_name,
             opts: DumpOptions { data: with_data, include_views: whole_db, include_routines: whole_db, ..Default::default() },
             preselect: tables,
             tables: loading,
@@ -500,9 +510,9 @@ impl Dialog for DumpDialog {
                 egui::Grid::new(("dump-grid", &self.id)).num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                     ui.label("Output file:");
                     ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut self.path).desired_width(360.0).min_size(egui::vec2(360.0, 0.0)));
+                        ui.add(crate::ui::path_edit(&mut self.path, ui, 360.0, 40.0, ""));
                         if ui.button("…").on_hover_text("Choose file").clicked() {
-                            let name = Path::new(&self.path).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                            let name = Path::new(&self.path).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| self.default_name.clone());
                             if let Some(p) = ui::save_file_dialog(&name, "sql") {
                                 self.path = p.display().to_string();
                             }

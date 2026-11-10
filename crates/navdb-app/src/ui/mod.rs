@@ -165,6 +165,27 @@ pub fn show_loadable<'a, T>(ui: &mut Ui, l: &'a Loadable<T>, what: &str) -> Opti
     }
 }
 
+/// Text box for a file or folder path next to its Browse button. It takes the
+/// row's remaining width (keeping `reserve` for the button), never more, so it
+/// cannot push the button over other widgets. The sandboxed App Store build can
+/// only use locations picked in a file dialog, so there the box is read-only and
+/// only shows the pick.
+pub fn path_edit<'t>(text: &'t mut dyn egui::TextBuffer, ui: &egui::Ui, max: f32, reserve: f32, hint: &str) -> egui::TextEdit<'t> {
+    let w = (ui.available_width() - reserve).clamp(120.0, max);
+    let hint = if crate::store::ENABLED { "Use the button to choose a location".to_string() } else { hint.to_string() };
+    egui::TextEdit::singleline(text).desired_width(w).min_size(egui::vec2(w, 0.0)).hint_text(hint).interactive(!crate::store::ENABLED)
+}
+
+/// Default location shown in a path box: empty in the App Store build, where
+/// the user has to pick one (the sandbox home is a hidden container folder).
+pub fn default_path(p: std::path::PathBuf) -> String {
+    if crate::store::ENABLED {
+        String::new()
+    } else {
+        p.display().to_string()
+    }
+}
+
 /// File-save helper that never panics when the native dialog is unavailable.
 pub fn save_file_dialog(default_name: &str, ext: &str) -> Option<std::path::PathBuf> {
     rfd::FileDialog::new().set_file_name(default_name).add_filter(ext.to_ascii_uppercase(), &[ext]).save_file()
